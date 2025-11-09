@@ -22,7 +22,12 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
-    "schema:drop": "npm run typeorm -- schema:drop"
+    "schema:drop": "npm run typeorm -- schema:drop",
+    "seed:reset": "ts-node -r tsconfig-paths/register src/scripts/reset-and-seed.ts",
+    "seed:clear": "ts-node -r tsconfig-paths/register src/scripts/clear-data-and-seed.ts",
+    "debug:classes": "ts-node -r tsconfig-paths/register src/scripts/debug-student-classes.ts",
+    "test:api": "ts-node -r tsconfig-paths/register src/scripts/test-api-logic.ts",
+    "test:mobile": "ts-node -r tsconfig-paths/register src/scripts/test-mobile-api.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

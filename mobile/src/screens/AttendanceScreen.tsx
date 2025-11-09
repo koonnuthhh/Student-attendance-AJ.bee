@@ -11,7 +11,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { attendanceAPI } from '../api';
+import { attendanceAPI, classesAPI, sessionsAPI } from '../api';
 import { theme } from '../config/theme';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -37,6 +37,8 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AttendanceScreen({ route }: any) {
   const { sessionId, sessionDate } = route.params;
   const [records, setRecords] = useState<any[]>([]);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -56,10 +58,51 @@ export default function AttendanceScreen({ route }: any) {
 
   const loadAttendance = async () => {
     try {
-      const data = await attendanceAPI.getBySession(sessionId);
-      setRecords(data);
+      // First, get session info to get the classId
+      const sessionData = await sessionsAPI.getOne(sessionId);
+      setSessionInfo(sessionData);
+      
+      // Get all students in the class
+      const studentsData = await classesAPI.getStudents(sessionData.classId);
+      console.log('Raw students data:', studentsData);
+      
+      // Extract student objects from enrollment records
+      const students = studentsData.map((enrollment: any) => enrollment.student);
+      console.log('Extracted students:', students);
+      setAllStudents(students);
+      
+      // Get existing attendance records for this session
+      const attendanceData = await attendanceAPI.getBySession(sessionId);
+      console.log('Attendance data:', attendanceData);
+      
+      // Create a map of attendance records by student ID for quick lookup
+      const attendanceMap = new Map();
+      attendanceData.forEach((record: any) => {
+        attendanceMap.set(record.student.id, record);
+      });
+      
+      // Create records for all students, using existing attendance or default to absent
+      const allRecords = students.map((student: any) => {
+        const existingRecord = attendanceMap.get(student.id);
+        if (existingRecord) {
+          return existingRecord;
+        } else {
+          // Create default record for students who haven't checked in
+          return {
+            id: `default-${student.id}`, // Temporary ID for default records
+            student: student,
+            status: 'absent',
+            note: '',
+            isDefault: true, // Flag to identify default records
+          };
+        }
+      });
+      
+      console.log('Final merged records:', allRecords);
+      setRecords(allRecords);
     } catch (error) {
       console.error(error);
+      Alert.alert('Error', 'Failed to load attendance data');
     } finally {
       setLoading(false);
     }
@@ -119,7 +162,16 @@ export default function AttendanceScreen({ route }: any) {
 
   const updateStatus = async (newStatus: string) => {
     try {
-      await attendanceAPI.update(sessionId, selectedRecord.id, newStatus, currentNotes || undefined);
+      if (selectedRecord.isDefault) {
+        // For default records, create a new attendance record
+        await attendanceAPI.bulkMark(sessionId, newStatus, [
+          { studentId: selectedRecord.student.id, status: newStatus, note: currentNotes }
+        ]);
+      } else {
+        // For existing records, update them
+        await attendanceAPI.update(sessionId, selectedRecord.id, newStatus, currentNotes || undefined);
+      }
+      
       setModalVisible(false);
       setCurrentNotes('');
       await loadAttendance();
@@ -137,7 +189,16 @@ export default function AttendanceScreen({ route }: any) {
 
   const saveNotes = async () => {
     try {
-      await attendanceAPI.update(sessionId, selectedRecord.id, selectedRecord.status, currentNotes);
+      if (selectedRecord.isDefault) {
+        // For default records, create a new attendance record with current status and notes
+        await attendanceAPI.bulkMark(sessionId, selectedRecord.status, [
+          { studentId: selectedRecord.student.id, status: selectedRecord.status, note: currentNotes }
+        ]);
+      } else {
+        // For existing records, update them
+        await attendanceAPI.update(sessionId, selectedRecord.id, selectedRecord.status, currentNotes);
+      }
+      
       setNotesModalVisible(false);
       setCurrentNotes('');
       await loadAttendance();
@@ -183,7 +244,7 @@ export default function AttendanceScreen({ route }: any) {
           placeholder="Search students..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          icon="🔍"
+          icon={<Text>🔍</Text>}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterButtons}>
           <TouchableOpacity
@@ -216,11 +277,26 @@ export default function AttendanceScreen({ route }: any) {
         data={filteredRecords}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.recordCard}>
+          <View style={[
+            styles.recordCard,
+            item.isDefault && styles.recordCardDefault
+          ]}>
             <View style={styles.recordInfo}>
               <Text style={styles.studentName}>
-                {item.student.firstName} {item.student.lastName}
+                {item.student.firstName && item.student.lastName 
+                  ? `${item.student.firstName} ${item.student.lastName}`
+                  : item.student.name || 'Unknown Student'
+                }
               </Text>
+              {item.student.email && (
+                <Text style={styles.studentEmail}>{item.student.email}</Text>
+              )}
+              {item.student.studentId && (
+                <Text style={styles.studentId}>ID: {item.student.studentId}</Text>
+              )}
+              {item.isDefault && (
+                <Text style={styles.notCheckedInIndicator}>Not checked in yet</Text>
+              )}
               {item.note && <Text style={styles.notePreview}>📝 {item.note}</Text>}
             </View>
             <View style={styles.recordActions}>
@@ -241,7 +317,7 @@ export default function AttendanceScreen({ route }: any) {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No records found</Text>
+            <Text style={styles.emptyText}>No students found</Text>
           </View>
         }
       />
@@ -264,7 +340,7 @@ export default function AttendanceScreen({ route }: any) {
             ))}
             <Button
               title="Cancel"
-              variant="outlined"
+              variant="outline"
               onPress={() => setModalVisible(false)}
             />
           </View>
@@ -298,7 +374,7 @@ export default function AttendanceScreen({ route }: any) {
               />
               <Button
                 title="Cancel"
-                variant="outlined"
+                variant="outline"
                 onPress={() => {
                   setNotesModalVisible(false);
                   setCurrentNotes('');
@@ -361,8 +437,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  recordCardDefault: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#ccc',
+    backgroundColor: '#f9f9f9',
+  },
   recordInfo: { flex: 1 },
-  studentName: { fontSize: 16, fontWeight: '500' },
+  studentName: { fontSize: 18, fontWeight: '600', color: '#333' },
+  studentEmail: { fontSize: 14, color: '#666', marginTop: 2 },
+  studentId: { fontSize: 12, color: '#888', marginTop: 1 },
+  notCheckedInIndicator: { 
+    fontSize: 14, 
+    color: '#ff9800', 
+    fontStyle: 'italic',
+    marginTop: 4,
+    backgroundColor: '#fff3cd',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
   notePreview: { fontSize: 12, color: '#666', marginTop: 4 },
   recordActions: { flexDirection: 'row', alignItems: 'center' },
   statusBadge: {

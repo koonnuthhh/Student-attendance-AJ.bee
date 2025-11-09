@@ -4,13 +4,15 @@ A React Native mobile application for student attendance tracking with QR code s
 
 ## 📱 Features
 
-- **Authentication**: Login/Register with email verification
+- **Self-Service Registration**: Students register using their existing university/school Student ID
+- **Flexible Student IDs**: Support for any Student ID format (3-20 characters)
+- **Authentication**: Login/Register with simplified validation
 - **Class Management**: Create and manage classes
-- **Session Management**: Create sessions with date/time
-- **Attendance Tracking**: Mark attendance manually or via QR code
+- **Session Management**: Create sessions with native date/time pickers
+- **Attendance Tracking**: Comprehensive attendance view showing all enrolled students
+- **5-Digit QR Codes**: Easy-to-type 5-digit QR codes for quick attendance
 - **Real-time Updates**: WebSocket integration for live attendance updates
 - **Geolocation**: Capture student location during QR check-in
-- **Offline Support**: Work offline and sync when connected (coming soon)
 - **Easy Configuration**: Centralized configuration file for customization
 
 ## 🚀 Quick Start
@@ -217,40 +219,57 @@ features: {
 ## 📱 Screens
 
 ### Login Screen
-- Login/Register toggle
+- Login/Register toggle with simplified validation
+- Student ID input accepts any format (3-20 characters)
+- Students use existing university/school Student IDs
 - Email & password validation
-- Error handling
+- Error handling with helpful guidance
 - Auto-navigate on success
 
 ### Classes Screen
 - List all classes
 - Create new class
 - Navigate to sessions
+- Clean interface without teacher-controlled features
 
 ### Sessions Screen
 - List class sessions
-- Create new session with date/time
+- Create new session with native date/time pickers
 - Navigate to attendance
+- 5-digit QR code generation for easy student input
 
 ### Attendance Screen
-- View attendance records
-- Mark attendance (tap to toggle)
+- Comprehensive view showing ALL enrolled students
+- Default "Absent" status for students who haven't checked in
+- Mark attendance (tap to toggle status)
 - Real-time updates via WebSocket
-- Bulk marking support
+- Visual distinction between checked-in and default statuses
 
 ### QR Scan Screen
-- Scan QR code for attendance
+- Scan 5-digit QR codes for quick attendance
+- Manual QR code entry option for easy typing
 - Capture geolocation
 - Success confirmation
 
 ## 🔐 Authentication Flow
 
-1. User enters credentials on Login screen
-2. API call to `/auth/login` or `/auth/register`
-3. Store token and user data in AsyncStorage
-4. Update AuthContext state
-5. Auto-navigate to Classes screen
-6. API client auto-attaches token to requests
+1. **Student Registration**:
+   - Student enters email, name, password, and their existing Student ID
+   - Student ID can be any format between 3-20 characters (e.g., "STU001", "2024-CS-123")
+   - No teacher-generated codes required
+   - System validates Student ID uniqueness
+   - Creates student record with provided Student ID
+
+2. **Login Process**:
+   - User enters email and password
+   - API call to `/auth/login` 
+   - Store token and user data in AsyncStorage
+   - Update AuthContext state
+   - Auto-navigate to Classes screen
+
+3. **API Security**:
+   - JWT tokens auto-attached to requests
+   - Automatic logout on 401 responses
 
 ## 🌐 API Integration
 
@@ -259,7 +278,7 @@ All API methods are in `src/api/index.ts`:
 ```typescript
 // Authentication
 await authAPI.login(email, password);
-await authAPI.register(email, name, password);
+await authAPI.register(email, name, password, role, studentId); // studentId for students
 
 // Classes
 await classesAPI.getAll();
@@ -334,11 +353,26 @@ onSessionStatsUpdate((data) => {
 - Ensure backend is running and accessible
 - Check firewall settings
 
+### Student Registration Issues
+
+- Ensure Student ID is between 3-20 characters
+- Student ID must be unique across the system
+- Use existing university/school Student ID format
+- No special characters validation - any format accepted
+
 ### QR Scanner not working
 
 - Ensure camera permissions are granted
 - Test on physical device (simulator may have issues)
+- Try manual QR code entry with 5-digit codes
 - Check Expo BarCode Scanner documentation
+
+### Attendance not showing all students
+
+- Check if students are properly enrolled in the class
+- Refresh the attendance screen (pull down)
+- Verify WebSocket connection for real-time updates
+- Default status should show as "Absent" for non-checked students
 
 ### WebSocket not connecting
 
@@ -352,7 +386,27 @@ onSessionStatsUpdate((data) => {
 - Check storage permissions
 - Use `npx react-native-clean-project` if needed
 
-## 📚 Additional Resources
+## � Recent Updates
+
+### Student Registration Overhaul
+- **Self-Service Registration**: Students now register using their existing university/school Student IDs
+- **Flexible ID Format**: Supports any Student ID format between 3-20 characters
+- **Simplified Validation**: Removed complex teacher-generated code system
+- **Real-world Ready**: Aligns with actual educational institution workflows
+
+### Enhanced User Experience  
+- **Native Date/Time Pickers**: Improved session creation with platform-native controls
+- **5-Digit QR Codes**: Simplified from complex UUIDs to easy-to-type 5-digit codes
+- **Comprehensive Attendance**: Shows ALL enrolled students with default statuses
+- **Removed Teacher Overhead**: Eliminated "Generate Student Code" feature
+
+### Technical Improvements
+- **Database Migrations**: Smooth transition to new 5-digit code system
+- **Backward Compatibility**: API supports both old and new parameter names
+- **Enhanced Validation**: Simple but effective Student ID uniqueness checking
+- **Cleaner UI**: Removed unused validation components and styling
+
+## �📚 Additional Resources
 
 - [React Native Documentation](https://reactnative.dev/docs/getting-started)
 - [Expo Documentation](https://docs.expo.dev/)

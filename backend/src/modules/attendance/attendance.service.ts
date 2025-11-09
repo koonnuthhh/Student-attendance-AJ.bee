@@ -3,14 +3,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AttendanceRecord, AttendanceStatus, AttendanceSource } from './attendance-record.entity';
 import { SessionsService } from '../sessions/sessions.service';
-import { AuditService } from '@/common/audit.service';
+import { AuditService } from '../../common/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { Student } from '../students/student.entity';
+import { User } from '../users/user.entity';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectRepository(AttendanceRecord)
     private readonly attendanceRepo: Repository<AttendanceRecord>,
+    @InjectRepository(Student)
+    private readonly studentRepo: Repository<Student>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly sessionsService: SessionsService,
     private readonly auditService: AuditService,
     private readonly realtimeGateway: RealtimeGateway,
@@ -45,19 +51,76 @@ export class AttendanceService {
     return saved;
   }
 
-  async markViaQR(token: string, studentId: string, lat?: number, long?: number, accuracy?: number) {
+  async markViaQR(token: string, userId: string, lat?: number, long?: number, accuracy?: number) {
+    // Validate input
+    if (!token || !userId) {
+      throw new Error('Missing required fields: token and userId');
+    }
+
+    // Verify token and get sessionId
     const sessionId = await this.sessionsService.verifyQRToken(token);
-    if (!sessionId) throw new Error('Invalid or expired QR');
+    if (!sessionId) {
+      throw new Error('Invalid or expired QR code');
+    }
+
+    // Find the student record for this user
+    // First, try to find by user's student code or email
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    let student = null;
+    if (user.studentCode) {
+      student = await this.studentRepo.findOne({ 
+        where: { studentId: user.studentCode } 
+      });
+    }
     
-    // Idempotency: if already marked, return existing
-    const existing = await this.attendanceRepo.findOne({ where: { sessionId, studentId } });
-    if (existing) return existing;
+    // If no student record found by student code, try by email
+    if (!student && user.email) {
+      student = await this.studentRepo.findOne({ 
+        where: { email: user.email } 
+      });
+    }
+
+    // If still no student record, create one
+    if (!student) {
+      const [firstName, ...lastNameParts] = user.name.split(' ');
+      const lastName = lastNameParts.join(' ') || '';
+      
+      student = this.studentRepo.create({
+        firstName,
+        lastName,
+        studentId: user.studentCode || user.id,
+        email: user.email,
+      });
+      
+      student = await this.studentRepo.save(student);
+    }
+
+    // Check if student is enrolled in the class for this session
+    // This would require adding enrollment check logic here if needed
     
+    // Idempotency: if already marked, return existing record
+    const existing = await this.attendanceRepo.findOne({ 
+      where: { sessionId, studentId: student.id },
+      relations: ['session'] 
+    });
+    
+    if (existing) {
+      return {
+        ...existing,
+        message: 'Attendance already marked for this session'
+      };
+    }
+    
+    // Create new attendance record
     const record = this.attendanceRepo.create({
       sessionId,
-      studentId,
+      studentId: student.id,
       status: AttendanceStatus.PRESENT,
-      markedBy: studentId,
+      markedBy: userId,
       markedAt: new Date(),
       source: AttendanceSource.QR,
       lat,
@@ -76,7 +139,10 @@ export class AttendanceService {
       markedAt: saved.markedAt,
     });
     
-    return saved;
+    return {
+      ...saved,
+      message: 'Attendance marked successfully'
+    };
   }
 
   async findBySession(sessionId: string) {

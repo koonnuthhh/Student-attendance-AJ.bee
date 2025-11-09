@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { SessionsService } from './sessions.service';
 
@@ -25,5 +25,10 @@ export class SessionsController {
   @Get(':sid/qr-token')
   async getQRToken(@Param('sid') sid: string) {
     return this.sessionsService.generateQRToken(sid);
+  }
+
+  @Delete(':sid')
+  async remove(@Param('sid') sessionId: string) {
+    return this.sessionsService.remove(sessionId);
   }
 }

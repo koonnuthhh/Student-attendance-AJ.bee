@@ -8,13 +8,41 @@ export class AuthController {
 
   @Post('register')
   async register(
+    @Body() body: any,
     @Body('email') email: string,
     @Body('name') name: string,
     @Body('password') password: string,
     @Body('role') role?: RoleName,
-    @Body('studentCode') studentCode?: string,
+    @Body('studentCode') studentCode?: string, // Keep old name for backward compatibility
+    @Body('studentId') studentId?: string, // New parameter name
   ) {
-    return this.authService.register(email, name, password, role, studentCode);
+    console.log('Registration attempt - raw body:', JSON.stringify(body));
+    
+    // Use studentId if provided, otherwise fall back to studentCode for backward compatibility
+    const actualStudentId = studentId || studentCode;
+    
+    console.log('Registration attempt - parsed:', { 
+      email, 
+      name: !!name, 
+      password: !!password, 
+      role, 
+      studentId: actualStudentId ? `"${actualStudentId}" (length: ${actualStudentId.length})` : 'undefined'
+    });
+
+    // Basic validation
+    if (!email || !name || !password) {
+      console.error('Missing required fields for registration');
+      throw new Error('Missing required fields: email, name, and password');
+    }
+
+    try {
+      const result = await this.authService.register(email, name, password, role, actualStudentId);
+      console.log('Registration successful for:', email);
+      return result;
+    } catch (error) {
+      console.error('Registration failed:', error.message);
+      throw error;
+    }
   }
 
   @Post('login')

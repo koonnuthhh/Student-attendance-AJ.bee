@@ -48,6 +48,11 @@ export const classesAPI = {
     const { data } = await api.post('/classes', { name, subject });
     return data;
   },
+
+  async getStudents(classId: string) {
+    const { data } = await api.get(`/classes/${classId}/students`);
+    return data;
+  },
 };
 
 export const sessionsAPI = {
@@ -56,13 +61,23 @@ export const sessionsAPI = {
     return data;
   },
 
+  async getOne(sessionId: string) {
+    const { data } = await api.get(`/sessions/${sessionId}`);
+    return data;
+  },
+
   async create(classId: string, date: string, startTime?: string, endTime?: string) {
     const { data } = await api.post(`/classes/${classId}/sessions`, { date, startTime, endTime });
     return data;
   },
 
+  async delete(classId: string, sessionId: string) {
+    const { data } = await api.delete(`/classes/${classId}/sessions/${sessionId}`);
+    return data;
+  },
+
   async getQRToken(sessionId: string) {
-    const { data } = await api.get(`/classes/_/sessions/${sessionId}/qr-token`);
+    const { data } = await api.get(`/sessions/${sessionId}/qr-token`);
     return data;
   },
 };
@@ -82,13 +97,18 @@ export const attendanceAPI = {
   },
 
   async qrScan(code: string, studentId: string, lat?: number, long?: number, accuracy?: number) {
-    const { data } = await api.post(`/sessions/_/attendance/qr-scan`, {
+    const requestData = {
       code,
-      studentId,
+      studentId, // This is actually the user ID, but backend expects 'studentId' in the body
       lat,
       long,
       accuracy,
-    });
+    };
+    
+    console.log('Making QR scan API call:', requestData);
+    console.log('API endpoint:', '/attendance/qr-scan');
+    
+    const { data } = await api.post(`/attendance/qr-scan`, requestData);
     return data;
   },
 
@@ -116,6 +136,30 @@ export const leaveAPI = {
 
   async reject(id: string, comment?: string) {
     const { data } = await api.patch(`/leave/${id}/reject`, { comment });
+    return data;
+  },
+};
+
+export const studentCodeAPI = {
+  async validateCode(code: string) {
+    const { data } = await api.get(`/student-codes/validate/${code}`);
+    return data;
+  },
+
+  async generateCodeForClass(classId: string) {
+    const { data } = await api.post(`/student-codes/generate-for-class/${classId}`);
+    return data;
+  },
+};
+
+export const studentsAPI = {
+  async getMyClasses() {
+    const { data } = await api.get('/students/my-classes');
+    return data;
+  },
+
+  async getMyAttendanceForClass(classId: string) {
+    const { data } = await api.get(`/students/attendance/class/${classId}`);
     return data;
   },
 };

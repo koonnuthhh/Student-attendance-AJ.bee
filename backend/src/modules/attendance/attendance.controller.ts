@@ -18,17 +18,6 @@ export class AttendanceController {
     return this.attendanceService.markBulk(sid, defaultStatus, overrides, req.user.userId);
   }
 
-  @Post('qr-scan')
-  async qrScan(
-    @Body('code') code: string,
-    @Body('studentId') studentId: string,
-    @Body('lat') lat?: number,
-    @Body('long') long?: number,
-    @Body('accuracy') accuracy?: number,
-  ) {
-    return this.attendanceService.markViaQR(code, studentId, lat, long, accuracy);
-  }
-
   @Get()
   async findAll(@Param('sid') sid: string) {
     return this.attendanceService.findBySession(sid);

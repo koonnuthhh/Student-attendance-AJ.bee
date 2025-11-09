@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Card, Loading } from '../components';
 import { theme } from '../config/theme';
+import { studentsAPI } from '../api';
 
 interface Class {
   id: string;
@@ -24,9 +26,10 @@ interface Class {
 }
 
 export default function StudentDashboardScreen({ navigation }: any) {
-  const { user, logout, setAuthData, token } = useAuth();
+  const { user, logout } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalClasses: 0,
     todaySessions: 0,
@@ -34,22 +37,17 @@ export default function StudentDashboardScreen({ navigation }: any) {
   });
 
   useEffect(() => {
-    // Debug: Log user object to see what fields are available
-    console.log('StudentDashboard - User object:', user);
-    console.log('StudentDashboard - User studentCode:', user?.studentCode);
-    console.log('StudentDashboard - User roles:', user?.roles);
-    
     loadStudentData();
   }, []);
 
-  const loadStudentData = async () => {
+  const loadStudentData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Loading student classes...');
       
-      // TODO: Replace with actual API calls when student enrollment endpoints are available
-      // For now, showing empty state since student isn't enrolled in any classes yet
-      const enrolledClasses: Class[] = [];
-
+      const enrolledClasses: Class[] = await studentsAPI.getMyClasses();
+      console.log('Loaded classes:', enrolledClasses.length);
+      
       setClasses(enrolledClasses);
       setStats({
         totalClasses: enrolledClasses.length,
@@ -59,12 +57,20 @@ export default function StudentDashboardScreen({ navigation }: any) {
           : 0,
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to load student data');
       console.error('Error loading student data:', error);
+      Alert.alert('Error', 'Failed to load your classes. Please try again.');
+      setClasses([]);
+      setStats({ totalClasses: 0, todaySessions: 0, overallAttendance: 0 });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadStudentData();
+  }, [loadStudentData]);
 
   const handleClassPress = (classItem: Class) => {
     navigation.navigate('ClassDetail', { 
@@ -79,48 +85,10 @@ export default function StudentDashboardScreen({ navigation }: any) {
   };
 
   const getDisplayStudentId = () => {
-    // If user has a studentCode, use it
     if (user?.studentCode) {
       return user.studentCode;
     }
-    
-    // If user is a student but no studentCode, generate a temporary display ID
-    if (user?.roles?.some(role => 
-      typeof role === 'string' ? role.toLowerCase() === 'student' : role.name?.toLowerCase() === 'student'
-    )) {
-      // Use last 8 characters of user ID as backup student ID
-      const userId = user.id || 'unknown';
-      return `STU${userId.slice(-5).toUpperCase()}`;
-    }
-    
-    return null;
-  };
-
-  const handleAssignTestStudentCode = async () => {
-    // Temporary function to test student ID display
-    if (!user) return;
-    
-    const testStudentCode = 'DEMO123A';
-    const updatedUser = {
-      ...user,
-      studentCode: testStudentCode
-    };
-    
-    try {
-      // Update the auth context with the test student code
-      await setAuthData(updatedUser, token!);
-      Alert.alert('Test Student ID Assigned', `Student ID: ${testStudentCode}`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to assign test student ID');
-    }
-  };
-
-  const handleViewProfile = () => {
-    navigation.navigate('StudentProfile');
-  };
-
-  const handleViewAttendanceHistory = () => {
-    navigation.navigate('StudentAttendanceHistory');
+    return user?.id ? `STU${user.id.slice(-5).toUpperCase()}` : 'N/A';
   };
 
   if (loading) {
@@ -132,78 +100,36 @@ export default function StudentDashboardScreen({ navigation }: any) {
     );
   }
 
+
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerInfo}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.studentName}>{user?.name || 'Student'}</Text>
-          {(() => {
-            const displayStudentId = getDisplayStudentId();
-            if (displayStudentId) {
-              return (
-                <View style={styles.studentIdContainer}>
-                  <Text style={styles.studentIdLabel}>Student ID:</Text>
-                  <Text style={styles.studentIdCode}>{displayStudentId}</Text>
-                  {!user?.studentCode && (
-                    <Text style={styles.temporaryIdNote}>(Temporary)</Text>
-                  )}
-                </View>
-              );
-            } else {
-              return (
-                <View style={styles.studentIdContainer}>
-                  <Text style={styles.noStudentId}>
-                    Contact teacher for Student ID assignment
-                  </Text>
-                </View>
-              );
-            }
-          })()}
+          <View style={styles.studentIdContainer}>
+            <Text style={styles.studentIdLabel}>Student ID:</Text>
+            <Text style={styles.studentIdCode}>{getDisplayStudentId()}</Text>
+            {!user?.studentCode && (
+              <Text style={styles.temporaryIdNote}>(Temporary)</Text>
+            )}
+          </View>
         </View>
-        <Button
-          title="Logout"
-          variant="ghost"
-          onPress={logout}
-          style={styles.logoutButton}
-        />
       </View>
-
-      {/* Student ID Card */}
-      {(() => {
-        const displayStudentId = getDisplayStudentId();
-        if (displayStudentId) {
-          return (
-            <Card style={styles.studentIdCard}>
-              <View style={styles.idCardContent}>
-                <View style={styles.idCardIcon}>
-                  <Text style={styles.idCardIconText}>🆔</Text>
-                </View>
-                <View style={styles.idCardInfo}>
-                  <Text style={styles.idCardTitle}>
-                    Your Student ID {!user?.studentCode && '(Temporary)'}
-                  </Text>
-                  <Text style={styles.idCardCode}>{displayStudentId}</Text>
-                  <Text style={styles.idCardSubtext}>
-                    {user?.studentCode 
-                      ? 'Show this ID to your teacher for class enrollment'
-                      : 'This is a temporary ID. Contact your teacher to get your official student code.'
-                    }
-                  </Text>
-                </View>
-              </View>
-            </Card>
-          );
-        }
-        return null;
-      })()}
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <Card style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.totalClasses}</Text>
-          <Text style={styles.statLabel}>Enrolled Classes</Text>
+          <Text style={styles.statLabel}>My Classes</Text>
         </Card>
         
         <Card style={styles.statCard}>
@@ -220,28 +146,25 @@ export default function StudentDashboardScreen({ navigation }: any) {
       {/* Quick Actions */}
       <View style={styles.actionsContainer}>
         <Button
-          title="Scan QR Code"
+          title="📱 Scan QR Code"
           onPress={handleQRScan}
-          style={styles.actionButton}
+          style={styles.primaryAction}
         />
         
-        {/* Temporary test button - remove in production */}
-        {!user?.studentCode && (
-          <Button
-            title="🧪 Assign Test Student ID"
-            onPress={handleAssignTestStudentCode}
-            style={styles.actionButton}
-          />
-        )}
-        
         <View style={styles.actionGrid}>
-          <TouchableOpacity style={styles.actionCard} onPress={handleViewAttendanceHistory}>
-            <Text style={styles.actionCardTitle}>📊</Text>
+          <TouchableOpacity 
+            style={styles.actionCard} 
+            onPress={() => navigation.navigate('StudentAttendanceHistory')}
+          >
+            <Text style={styles.actionCardIcon}>📊</Text>
             <Text style={styles.actionCardLabel}>Attendance History</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionCard} onPress={handleViewProfile}>
-            <Text style={styles.actionCardTitle}>👤</Text>
+          <TouchableOpacity 
+            style={styles.actionCard} 
+            onPress={() => navigation.navigate('StudentProfile')}
+          >
+            <Text style={styles.actionCardIcon}>👤</Text>
             <Text style={styles.actionCardLabel}>My Profile</Text>
           </TouchableOpacity>
         </View>
@@ -249,15 +172,22 @@ export default function StudentDashboardScreen({ navigation }: any) {
 
       {/* Classes List */}
       <View style={styles.classesSection}>
-        <Text style={styles.sectionTitle}>My Classes</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>My Classes</Text>
+          <Text style={styles.classCount}>{classes.length}</Text>
+        </View>
         
         {classes.length === 0 ? (
           <Card style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>🎓</Text>
             <Text style={styles.emptyStateText}>
-              You're not enrolled in any classes yet.
+              You're not enrolled in any classes yet
             </Text>
             <Text style={styles.emptyStateSubText}>
-              Contact your teacher to get your student code.
+              {user?.studentCode 
+                ? 'Ask your teacher to enroll you in classes'
+                : 'Contact your teacher to get your student code'
+              }
             </Text>
           </Card>
         ) : (
@@ -271,10 +201,13 @@ export default function StudentDashboardScreen({ navigation }: any) {
                   <View style={styles.classInfo}>
                     <Text style={styles.className}>{classItem.name}</Text>
                     <Text style={styles.classSubject}>{classItem.subject}</Text>
-                    <Text style={styles.teacherName}>{classItem.teacher.name}</Text>
+                    <Text style={styles.teacherName}>👨‍🏫 {classItem.teacher.name}</Text>
                   </View>
                   <View style={styles.classStats}>
-                    <Text style={styles.attendanceRate}>
+                    <Text style={[
+                      styles.attendanceRate,
+                      { color: classItem.attendanceRate >= 80 ? theme.colors.success : theme.colors.warning }
+                    ]}>
                       {classItem.attendanceRate}%
                     </Text>
                     <Text style={styles.attendanceLabel}>Attendance</Text>
@@ -451,7 +384,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  actionCardTitle: {
+  actionCardIcon: {
     fontSize: 24,
     marginBottom: theme.spacing.sm,
   },
@@ -476,11 +409,28 @@ const styles = StyleSheet.create({
   classesSection: {
     marginBottom: theme.spacing.xl,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: theme.typography.fontWeight.bold as any,
     color: theme.colors.text,
-    marginBottom: theme.spacing.md,
+    flex: 1,
+  },
+  refreshButton: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  refreshIcon: {
+    fontSize: 16,
+    color: theme.colors.primary,
   },
   emptyState: {
     padding: theme.spacing.xl,
@@ -548,5 +498,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.warning,
     fontWeight: theme.typography.fontWeight.medium as any,
+  },
+  primaryAction: {
+    backgroundColor: theme.colors.primary,
+    marginBottom: theme.spacing.md,
+  },
+  classCount: {
+    fontSize: 16,
+    fontWeight: theme.typography.fontWeight.bold as any,
+    color: theme.colors.primary,
+    backgroundColor: theme.colors.primaryLight + '30',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,14 @@ export default function LoginScreen({ navigation }: any) {
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Simple student ID validation
+  const validateStudentId = () => {
+    if (role === 'Student' && studentCode.trim()) {
+      return studentCode.trim().length >= 3 && studentCode.trim().length <= 20;
+    }
+    return true;
+  };
 
   const validateLogin = () => {
     const newErrors: { [key: string]: string } = {};
@@ -80,10 +88,8 @@ export default function LoginScreen({ navigation }: any) {
     if (role === 'Student') {
       if (!studentCode.trim()) {
         newErrors.studentCode = 'Student ID is required for student accounts';
-      } else if (studentCode.length !== 8) {
-        newErrors.studentCode = 'Student ID must be exactly 8 characters';
-      } else if (!/^[A-Z0-9]{8}$/.test(studentCode.toUpperCase())) {
-        newErrors.studentCode = 'Student ID must contain only letters and numbers';
+      } else if (!validateStudentId()) {
+        newErrors.studentCode = 'Student ID must be between 3-20 characters';
       }
     }
 
@@ -123,7 +129,7 @@ export default function LoginScreen({ navigation }: any) {
       );
       Alert.alert(
         'Registration Successful',
-        `Your ${role} account has been created! Please check your email to verify your account before logging in.`,
+        `Your ${role} account has been created successfully! You can now log in.`,
         [
           {
             text: 'OK',
@@ -257,18 +263,22 @@ export default function LoginScreen({ navigation }: any) {
               </View>
 
               {role === 'Student' && (
-                <Input
-                  label="Student ID (Required)"
-                  value={studentCode}
-                  onChangeText={(text) => {
-                    setStudentCode(text.toUpperCase());
-                    setErrors({ ...errors, studentCode: '' });
-                  }}
-                  placeholder="Enter your 8-character Student ID"
-                  maxLength={8}
-                  autoCapitalize="characters"
-                  error={errors.studentCode}
-                />
+                <View>
+                  <Input
+                    label="Student ID (Required)"
+                    value={studentCode}
+                    onChangeText={(text) => {
+                      setStudentCode(text);
+                      setErrors({ ...errors, studentCode: '' });
+                    }}
+                    placeholder="Enter your Student ID (e.g. STU001, 2024001)"
+                    maxLength={20}
+                    error={errors.studentCode}
+                  />
+                  <Text style={styles.helpText}>
+                    💡 Use your existing university/school Student ID
+                  </Text>
+                </View>
               )}
 
               <Input
@@ -404,5 +414,30 @@ const styles = StyleSheet.create({
   roleOptionTextSelected: {
     color: theme.colors.surface,
     fontWeight: theme.typography.fontWeight.bold as any,
+  },
+  classesPreview: {
+    marginTop: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.primaryLight + '20',
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  classesTitle: {
+    fontSize: 12,
+    fontWeight: theme.typography.fontWeight.bold as any,
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  classItem: {
+    fontSize: 12,
+    color: theme.colors.text,
+    marginLeft: theme.spacing.sm,
+  },
+  helpText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xs,
+    fontStyle: 'italic',
   },
 });

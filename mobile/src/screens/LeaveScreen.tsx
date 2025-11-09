@@ -277,7 +277,7 @@ export default function LeaveScreen() {
                 placeholder="YYYY-MM-DD"
                 value={startDate}
                 onChangeText={setStartDate}
-                icon="📅"
+                icon={<Text>📅</Text>}
               />
 
               <Text style={styles.label}>End Date *</Text>
@@ -285,7 +285,7 @@ export default function LeaveScreen() {
                 placeholder="YYYY-MM-DD"
                 value={endDate}
                 onChangeText={setEndDate}
-                icon="📅"
+                icon={<Text>📅</Text>}
               />
 
               {/* Reason */}

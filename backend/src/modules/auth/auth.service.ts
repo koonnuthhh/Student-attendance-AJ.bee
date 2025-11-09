@@ -9,7 +9,6 @@ import { VerificationToken, TokenType } from '../users/verification-token.entity
 import { Role, RoleName } from '../users/role.entity';
 import { Student } from '../students/student.entity';
 import { EmailService } from '../notifications/email.service';
-import { StudentCodesService } from '../student-codes/student-codes.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -26,81 +25,103 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
-    private readonly studentCodesService: StudentCodesService,
   ) {}
 
-  async register(email: string, name: string, password: string, roleName: RoleName = RoleName.STUDENT, studentCode?: string) {
-    // If student code is provided, validate it
-    if (studentCode) {
-      const codeValidation = await this.studentCodesService.validateCode(studentCode);
-      if (!codeValidation.isValid) {
-        throw new BadRequestException('Invalid student code');
-      }
-      if (codeValidation.isUsed) {
-        throw new BadRequestException('Student code has already been used');
-      }
-    }
+  async register(email: string, name: string, password: string, roleName: RoleName = RoleName.STUDENT, studentId?: string) {
+    console.log('AuthService.register called with:', { email, name: !!name, password: !!password, roleName, studentId });
 
-    const passwordHash = await argon2.hash(password);
-    const user = this.userRepo.create({
-      email,
-      name,
-      passwordHash,
-      status: UserStatus.PENDING_VERIFICATION,
-      studentCode: studentCode?.toUpperCase(),
-      studentCodeUsed: !!studentCode,
-      studentCodeGeneratedAt: studentCode ? new Date() : undefined,
-    });
-    
-    const role = await this.roleRepo.findOne({ where: { name: roleName } });
-    if (role) user.roles = [role];
-    
-    await this.userRepo.save(user);
+    try {
+      // Check if user already exists
+      const existingUser = await this.userRepo.findOne({ where: { email } });
+      if (existingUser) {
+        console.error('User already exists:', email);
+        throw new BadRequestException('User with this email already exists');
+      }
 
-    // If this is a student registration and has a student code, create a student record
-    if (roleName === RoleName.STUDENT && studentCode) {
-      // Parse name into first and last name
-      const nameParts = name.trim().split(' ');
-      const firstName = nameParts[0] || 'Student';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      // Basic validation
+      if (!email || !name || !password) {
+        throw new BadRequestException('Missing required fields: email, name, password');
+      }
+
+      // For students, require a student ID
+      if (roleName === RoleName.STUDENT && (!studentId || !studentId.trim())) {
+        throw new BadRequestException('Student ID is required for student accounts');
+      }
+
+      // Validate student ID length if provided
+      if (studentId && (studentId.trim().length < 3 || studentId.trim().length > 20)) {
+        throw new BadRequestException('Student ID must be between 3-20 characters');
+      }
+
+      // Check if student ID is already used (for students only)
+      if (roleName === RoleName.STUDENT && studentId) {
+        const existingStudent = await this.studentRepo.findOne({ 
+          where: { studentId: studentId.trim() } 
+        });
+        if (existingStudent) {
+          throw new BadRequestException('This Student ID is already registered');
+        }
+      }
+
+      console.log('Hashing password...');
+      const passwordHash = await argon2.hash(password);
       
-      const studentRecord = this.studentRepo.create({
-        firstName,
-        lastName,
-        studentId: studentCode.toUpperCase(),
+      console.log('Creating user record...');
+      const user = this.userRepo.create({
         email,
+        name,
+        passwordHash,
+        status: UserStatus.ACTIVE, // Skip email verification for now
+        studentCode: studentId?.trim(), // Store the student ID in studentCode field for now
       });
       
-      await this.studentRepo.save(studentRecord);
-    }
+      console.log('Finding role:', roleName);
+      const role = await this.roleRepo.findOne({ where: { name: roleName } });
+      if (role) {
+        user.roles = [role];
+      } else {
+        console.warn('Role not found, trying to find Student role');
+        // Try to find Student role as fallback
+        const studentRole = await this.roleRepo.findOne({ where: { name: RoleName.STUDENT } });
+        if (studentRole) {
+          user.roles = [studentRole];
+        }
+      }
+      
+      console.log('Saving user...');
+      const savedUser = await this.userRepo.save(user);
+      console.log('User saved with ID:', savedUser.id);
 
-    // Mark student code as used if provided
-    if (studentCode) {
-      await this.studentCodesService.markCodeAsUsed(studentCode);
-    }
-    
-    // Generate verification token
-    const token = uuidv4();
-    await this.tokenRepo.save({
-      userId: user.id,
-      type: TokenType.EMAIL_VERIFICATION,
-      token,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-    });
-    
-    // Send verification email
-    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
-    const verificationUrl = `${appUrl}/verify-email?token=${token}`;
-    
-    try {
-      const emailTemplate = this.emailService.generateVerificationEmail(name, verificationUrl);
-      await this.emailService.sendEmail(email, emailTemplate);
+      // Create student record if this is a student
+      if (roleName === RoleName.STUDENT && studentId) {
+        try {
+          console.log('Creating student record with ID:', studentId.trim());
+          // Parse name into first and last name
+          const nameParts = name.trim().split(' ');
+          const firstName = nameParts[0] || 'Student';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          
+          const studentRecord = this.studentRepo.create({
+            firstName,
+            lastName,
+            studentId: studentId.trim(),
+            email,
+          });
+          
+          await this.studentRepo.save(studentRecord);
+          console.log('Student record created successfully');
+        } catch (error) {
+          console.error('Failed to create student record:', error);
+          // Don't fail registration if student record creation fails
+        }
+      }
+      
+      console.log('Registration completed successfully');
+      return { user: savedUser, message: 'Registration successful' };
     } catch (error) {
-      console.error('Failed to send verification email:', error);
-      // Don't fail registration if email fails
+      console.error('Registration error:', error);
+      throw error;
     }
-    
-    return { user, verificationToken: token };
   }
 
   async login(email: string, password: string) {

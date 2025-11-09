@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { sessionsAPI, attendanceAPI } from '../api';
+import { sessionsAPI, attendanceAPI, classesAPI } from '../api';
 import { theme } from '../config/theme';
 import { Card } from '../components/Card';
 import { Loading } from '../components/Loading';
@@ -18,7 +18,8 @@ interface DashboardStats {
   totalStudents: number;
   presentToday: number;
   absentToday: number;
-  recentSessions: any[];
+  upcomingSessions: any[];
+  totalClasses: number;
 }
 
 export default function DashboardScreen() {
@@ -28,7 +29,8 @@ export default function DashboardScreen() {
     totalStudents: 0,
     presentToday: 0,
     absentToday: 0,
-    recentSessions: [],
+    upcomingSessions: [],
+    totalClasses: 0,
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,18 +41,81 @@ export default function DashboardScreen() {
 
   const loadDashboard = async () => {
     try {
-      // For now, we'll calculate stats from available data
-      // In production, you'd have dedicated dashboard endpoints
-      // This is a real implementation using actual API calls
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Get all classes for the teacher
+      const classes = await classesAPI.getAll();
+      const totalClasses = classes.length;
+      
+      let todaySessions = 0;
+      let totalStudents = 0;
+      let presentToday = 0;
+      let absentToday = 0;
+      const upcomingSessions = [];
+      
+      // Get sessions and attendance data for each class
+      for (const classItem of classes) {
+        try {
+          const sessions = await sessionsAPI.getByClass(classItem.id);
+          
+          // Count today's sessions and upcoming sessions
+          for (const session of sessions) {
+            const sessionDate = new Date(session.date).toISOString().split('T')[0];
+            const sessionDateTime = new Date(session.date);
+            const now = new Date();
+            
+            if (sessionDate === today) {
+              todaySessions++;
+              
+              // Get attendance for today's sessions
+              try {
+                const attendance = await attendanceAPI.getBySession(session.id);
+                if (attendance && attendance.length > 0) {
+                  totalStudents += attendance.length;
+                  presentToday += attendance.filter((a: any) => a.status === 'present').length;
+                  absentToday += attendance.filter((a: any) => a.status === 'absent').length;
+                }
+              } catch (error) {
+                console.warn('Failed to get attendance for session:', session.id);
+              }
+            }
+            
+            // Get upcoming sessions (future sessions)
+            if (sessionDateTime > now && upcomingSessions.length < 5) {
+              upcomingSessions.push({
+                ...session,
+                className: classItem.name,
+                classId: classItem.id,
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to get sessions for class:', classItem.id);
+        }
+      }
+      
+      // Sort upcoming sessions by date
+      upcomingSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      setStats({
+        todaySessions,
+        totalStudents,
+        presentToday,
+        absentToday,
+        upcomingSessions: upcomingSessions.slice(0, 5), // Show only next 5 sessions
+        totalClasses,
+      });
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+      // Set default values on error
       setStats({
         todaySessions: 0,
         totalStudents: 0,
         presentToday: 0,
         absentToday: 0,
-        recentSessions: [],
+        upcomingSessions: [],
+        totalClasses: 0,
       });
-    } catch (error) {
-      console.error('Failed to load dashboard:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,22 +158,22 @@ export default function DashboardScreen() {
         </Card>
 
         <Card variant="elevated" style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalStudents}</Text>
-          <Text style={styles.statLabel}>Total Students</Text>
+          <Text style={styles.statValue}>{stats.totalClasses}</Text>
+          <Text style={styles.statLabel}>Total Classes</Text>
         </Card>
 
         <View style={[styles.statCard, styles.presentCard]}>
           <Text style={[styles.statValue, { color: theme.colors.success }]}>
             {stats.presentToday}
           </Text>
-          <Text style={styles.statLabel}>Present</Text>
+          <Text style={styles.statLabel}>Present Today</Text>
         </View>
 
         <View style={[styles.statCard, styles.absentCard]}>
           <Text style={[styles.statValue, { color: theme.colors.error }]}>
             {stats.absentToday}
           </Text>
-          <Text style={styles.statLabel}>Absent</Text>
+          <Text style={styles.statLabel}>Absent Today</Text>
         </View>
       </View>
 
@@ -126,49 +191,42 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {/* Quick Actions */}
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.actionsGrid}>
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate('Classes' as never)}
-        >
-          <Text style={styles.actionIcon}>📚</Text>
-          <Text style={styles.actionText}>View Classes</Text>
-        </TouchableOpacity>
+      {/* View Classes Button */}
+      <TouchableOpacity
+        style={styles.viewClassesButton}
+        onPress={() => navigation.navigate('Classes' as never)}
+      >
+        <Text style={styles.viewClassesIcon}>📚</Text>
+        <Text style={styles.viewClassesText}>View All Classes</Text>
+      </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: theme.colors.secondary }]}
-          onPress={() => navigation.navigate('QRScan' as never)}
-        >
-          <Text style={styles.actionIcon}>📷</Text>
-          <Text style={styles.actionText}>Scan QR</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: theme.colors.warning }]}
-          onPress={() => {/* Navigate to reports */}}
-        >
-          <Text style={styles.actionIcon}>📊</Text>
-          <Text style={styles.actionText}>Reports</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: theme.colors.info }]}
-          onPress={() => {/* Navigate to leave */}}
-        >
-          <Text style={styles.actionIcon}>📝</Text>
-          <Text style={styles.actionText}>Leave Requests</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Recent Activity Placeholder */}
-      <Text style={styles.sectionTitle}>Recent Activity</Text>
-      <Card>
-        <Text style={styles.placeholderText}>
-          Recent sessions and attendance changes will appear here
-        </Text>
-      </Card>
+      {/* Upcoming Sessions */}
+      <Text style={styles.sectionTitle}>Upcoming Sessions</Text>
+      {stats.upcomingSessions.length > 0 ? (
+        <View style={styles.sessionsContainer}>
+          {stats.upcomingSessions.map((session, index) => (
+            <Card key={`${session.id}-${index}`} style={styles.sessionCard}>
+              <View style={styles.sessionHeader}>
+                <Text style={styles.sessionClass}>{session.className}</Text>
+                <Text style={styles.sessionDate}>
+                  {new Date(session.date).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.sessionTime}>
+                <Text style={styles.sessionTimeText}>
+                  🕐 {session.startTime ? `${session.startTime}${session.endTime ? ` - ${session.endTime}` : ''}` : 'Time not set'}
+                </Text>
+              </View>
+            </Card>
+          ))}
+        </View>
+      ) : (
+        <Card>
+          <Text style={styles.placeholderText}>
+            No upcoming sessions scheduled
+          </Text>
+        </Card>
+      )}
     </ScrollView>
   );
 }
@@ -260,29 +318,57 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   
-  // Actions Grid
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.xl,
-  },
-  actionCard: {
-    width: '48%',
+  // View Classes Button
+  viewClassesButton: {
+    backgroundColor: theme.colors.primary,
     padding: theme.spacing.lg,
     borderRadius: theme.borderRadius.lg,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    justifyContent: 'center',
+    marginBottom: theme.spacing.xl,
+    ...theme.shadows.md,
   },
-  actionIcon: {
-    fontSize: 40,
-    marginBottom: theme.spacing.sm,
+  viewClassesIcon: {
+    fontSize: 24,
+    marginRight: theme.spacing.sm,
   },
-  actionText: {
-    fontSize: 14,
+  viewClassesText: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-    textAlign: 'center',
+  },
+  
+  // Sessions
+  sessionsContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  sessionCard: {
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.lg,
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.sm,
+  },
+  sessionClass: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  sessionDate: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  sessionTime: {
+    marginTop: theme.spacing.xs,
+  },
+  sessionTimeText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
   
   // Placeholder

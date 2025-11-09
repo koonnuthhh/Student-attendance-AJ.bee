@@ -7,7 +7,7 @@ export class QRToken extends BaseEntity {
   @Column()
   sessionId: string;
 
-  @Column()
+  @Column({ length: 5, comment: '5-digit QR token code' })
   token: string;
 
   @Column()

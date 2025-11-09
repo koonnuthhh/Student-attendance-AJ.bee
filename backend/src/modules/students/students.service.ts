@@ -46,4 +46,11 @@ export class StudentsService {
     });
     return !!enrollment;
   }
+
+  async findClassesByStudentId(studentId: string) {
+    return this.enrollmentRepo.find({
+      where: { studentId },
+      relations: ['class', 'class.teacher'],
+    });
+  }
 }

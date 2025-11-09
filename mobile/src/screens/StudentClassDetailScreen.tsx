@@ -11,135 +11,100 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Card, Loading } from '../components';
 import { theme } from '../config/theme';
+import { APP_CONFIG } from '../config/app.config';
 
 interface Session {
   id: string;
-  name: string;
   date: string;
   startTime: string;
   endTime: string;
-  status: 'upcoming' | 'active' | 'completed';
-  attendanceStatus?: 'present' | 'absent' | 'late' | 'excused';
-  qrRequired: boolean;
-  location?: string;
-}
-
-interface ClassDetail {
-  id: string;
-  name: string;
-  subject: string;
-  description: string;
-  teacher: {
-    name: string;
-    email: string;
-  };
-  schedule: {
-    days: string[];
-    time: string;
-    location: string;
-  };
-  attendanceRate: number;
-  totalSessions: number;
-  attendedSessions: number;
+  attendanceStatus?: 'present' | 'absent' | 'late' | null;
+  checkInTime?: string;
+  notes?: string;
 }
 
 export default function StudentClassDetailScreen({ route, navigation }: any) {
   const { classId, className } = route.params;
   const { user } = useAuth();
-  const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [studentAttendance, setStudentAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions'>('overview');
 
   useEffect(() => {
     navigation.setOptions({ title: className });
-    loadClassDetail();
+    loadData();
   }, [classId, className]);
 
-  const loadClassDetail = async () => {
+  const getToken = async () => {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    return await AsyncStorage.getItem('accessToken');
+  };
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      
-      // Mock data - replace with actual API calls
-      const mockClassDetail: ClassDetail = {
-        id: classId,
-        name: className,
-        subject: 'Programming Fundamentals',
-        description: 'Introduction to computer programming concepts using modern programming languages.',
-        teacher: {
-          name: 'Dr. Smith',
-          email: 'smith@school.edu',
-        },
-        schedule: {
-          days: ['Monday', 'Wednesday', 'Friday'],
-          time: '9:00 AM - 10:30 AM',
-          location: 'Room 201, Computer Lab',
-        },
-        attendanceRate: 85,
-        totalSessions: 20,
-        attendedSessions: 17,
-      };
-
-      const mockSessions: Session[] = [
-        {
-          id: '1',
-          name: 'Introduction to Variables',
-          date: '2025-11-07',
-          startTime: '09:00',
-          endTime: '10:30',
-          status: 'active',
-          qrRequired: true,
-          location: 'Room 201',
-        },
-        {
-          id: '2',
-          name: 'Control Structures',
-          date: '2025-11-05',
-          startTime: '09:00',
-          endTime: '10:30',
-          status: 'completed',
-          attendanceStatus: 'present',
-          qrRequired: true,
-          location: 'Room 201',
-        },
-        {
-          id: '3',
-          name: 'Functions and Methods',
-          date: '2025-11-03',
-          startTime: '09:00',
-          endTime: '10:30',
-          status: 'completed',
-          attendanceStatus: 'late',
-          qrRequired: true,
-          location: 'Room 201',
-        },
-        {
-          id: '4',
-          name: 'Data Structures',
-          date: '2025-11-10',
-          startTime: '09:00',
-          endTime: '10:30',
-          status: 'upcoming',
-          qrRequired: true,
-          location: 'Room 201',
-        },
-      ];
-
-      setClassDetail(mockClassDetail);
-      setSessions(mockSessions);
+      await Promise.all([loadSessions(), loadStudentAttendance()]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load class details');
-      console.error('Error loading class detail:', error);
+      Alert.alert('Error', 'Failed to load class data');
+      console.error('Error loading class data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  const loadSessions = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(`${APP_CONFIG.api.baseURL}/classes/${classId}/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded sessions:', data);
+        setSessions(data);
+      } else {
+        console.error('Failed to load sessions:', response.status);
+        setSessions([]);
+      }
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+      setSessions([]);
+    }
+  };
+
+  const loadStudentAttendance = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(`${APP_CONFIG.api.baseURL}/students/attendance/class/${classId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded student attendance:', data);
+        setStudentAttendance(data);
+      } else {
+        console.error('Failed to load student attendance:', response.status);
+        setStudentAttendance([]);
+      }
+    } catch (error) {
+      console.error('Failed to load student attendance:', error);
+      setStudentAttendance([]);
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
-    loadClassDetail();
+    loadData();
   };
 
   const handleQRScan = () => {
@@ -147,56 +112,56 @@ export default function StudentClassDetailScreen({ route, navigation }: any) {
   };
 
   const handleSessionPress = (session: Session) => {
-    if (session.status === 'active') {
+    const isToday = new Date(session.date).toDateString() === new Date().toDateString();
+    const attendanceRecord = studentAttendance.find(att => att.session?.id === session.id);
+    
+    if (isToday && !attendanceRecord) {
       Alert.alert(
         'Join Session',
-        `Would you like to join "${session.name}"?`,
+        `Join today's session?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Scan QR Code', onPress: handleQRScan },
         ]
       );
-    } else if (session.status === 'completed') {
-      // Show session details or attendance info
+    } else if (attendanceRecord) {
       Alert.alert(
         'Session Details',
-        `Session: ${session.name}\nStatus: ${session.attendanceStatus?.toUpperCase()}\nDate: ${session.date}`
+        `Date: ${new Date(session.date).toLocaleDateString()}\nStatus: ${attendanceRecord.status?.toUpperCase() || 'NO RECORD'}\n${attendanceRecord.checkInTime ? `Checked in: ${new Date(attendanceRecord.checkInTime).toLocaleTimeString()}` : ''}\n${attendanceRecord.notes ? `Notes: ${attendanceRecord.notes}` : ''}`
       );
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'present': return theme.colors.success;
       case 'late': return theme.colors.warning;
       case 'absent': return theme.colors.error;
-      case 'excused': return theme.colors.info;
-      case 'active': return theme.colors.primary;
-      case 'upcoming': return theme.colors.textSecondary;
       default: return theme.colors.textSecondary;
     }
   };
 
   const getStatusText = (session: Session) => {
-    if (session.status === 'active') return 'Active Now';
-    if (session.status === 'upcoming') return 'Upcoming';
-    return session.attendanceStatus?.toUpperCase() || 'COMPLETED';
+    const attendanceRecord = studentAttendance.find(att => att.session?.id === session.id);
+    const sessionDate = new Date(session.date);
+    const today = new Date();
+    const isToday = sessionDate.toDateString() === today.toDateString();
+    const isFuture = sessionDate > today;
+    
+    if (attendanceRecord) {
+      return attendanceRecord.status?.toUpperCase() || 'NO RECORD';
+    }
+    
+    if (isFuture) return 'UPCOMING';
+    if (isToday) return 'TODAY';
+    return 'NO RECORD';
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <Loading />
-        <Text style={styles.loadingText}>Loading class details...</Text>
-      </View>
-    );
-  }
-
-  if (!classDetail) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Class not found</Text>
-        <Button title="Go Back" onPress={() => navigation.goBack()} />
+        <Text style={styles.loadingText}>Loading sessions...</Text>
       </View>
     );
   }
@@ -209,124 +174,114 @@ export default function StudentClassDetailScreen({ route, navigation }: any) {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
+      {/* Sessions Header */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.sectionTitle}>Sessions ({sessions.length})</Text>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
-          onPress={() => setActiveTab('overview')}
+          style={styles.refreshButton}
+          onPress={handleRefresh}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>
-            Overview
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'sessions' && styles.activeTab]}
-          onPress={() => setActiveTab('sessions')}
-        >
-          <Text style={[styles.tabText, activeTab === 'sessions' && styles.activeTabText]}>
-            Sessions
-          </Text>
+          <Text style={styles.refreshIcon}>🔄</Text>
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'overview' ? (
-        <>
-          {/* Class Info */}
-          <Card style={styles.classInfoCard}>
-            <Text style={styles.classTitle}>{classDetail.name}</Text>
-            <Text style={styles.classSubject}>{classDetail.subject}</Text>
-            <Text style={styles.classDescription}>{classDetail.description}</Text>
+      {/* Sessions List */}
+      <View style={styles.sessionsContainer}>
+        {sessions.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No sessions yet</Text>
+            <Text style={styles.emptySubtext}>
+              Sessions will appear here once your teacher creates them
+            </Text>
+          </Card>
+        ) : (
+          sessions.map((session) => {
+            const attendanceRecord = studentAttendance.find(att => att.session?.id === session.id);
+            const sessionDate = new Date(session.date);
+            const today = new Date();
+            const isToday = sessionDate.toDateString() === today.toDateString();
             
-            <View style={styles.teacherInfo}>
-              <Text style={styles.sectionTitle}>Instructor</Text>
-              <Text style={styles.teacherName}>{classDetail.teacher.name}</Text>
-              <Text style={styles.teacherEmail}>{classDetail.teacher.email}</Text>
-            </View>
-            
-            <View style={styles.scheduleInfo}>
-              <Text style={styles.sectionTitle}>Schedule</Text>
-              <Text style={styles.scheduleText}>
-                {classDetail.schedule.days.join(', ')} • {classDetail.schedule.time}
-              </Text>
-              <Text style={styles.locationText}>{classDetail.schedule.location}</Text>
-            </View>
-          </Card>
-
-          {/* Attendance Stats */}
-          <Card style={styles.statsCard}>
-            <Text style={styles.sectionTitle}>Your Attendance</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{classDetail.attendanceRate}%</Text>
-                <Text style={styles.statLabel}>Attendance Rate</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{classDetail.attendedSessions}</Text>
-                <Text style={styles.statLabel}>Sessions Attended</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{classDetail.totalSessions}</Text>
-                <Text style={styles.statLabel}>Total Sessions</Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card style={styles.actionsCard}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <Button
-              title="Scan QR Code"
-              onPress={handleQRScan}
-              style={styles.actionButton}
-            />
-          </Card>
-        </>
-      ) : (
-        /* Sessions List */
-        <View style={styles.sessionsContainer}>
-          {sessions.map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              onPress={() => handleSessionPress(session)}
-            >
-              <Card style={styles.sessionCard}>
-                <View style={styles.sessionHeader}>
-                  <View style={styles.sessionInfo}>
-                    <Text style={styles.sessionName}>{session.name}</Text>
-                    <Text style={styles.sessionDate}>
-                      {session.date} • {session.startTime} - {session.endTime}
-                    </Text>
-                    {session.location && (
-                      <Text style={styles.sessionLocation}>{session.location}</Text>
-                    )}
-                  </View>
-                  <View style={styles.sessionStatus}>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(session.attendanceStatus || session.status) + '20' }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: getStatusColor(session.attendanceStatus || session.status) }
-                      ]}>
-                        {getStatusText(session)}
+            return (
+              <TouchableOpacity
+                key={session.id}
+                onPress={() => handleSessionPress(session)}
+              >
+                <Card style={styles.sessionCard}>
+                  <View style={styles.sessionHeader}>
+                    <View style={styles.sessionInfo}>
+                      <Text style={styles.sessionDate}>
+                        📅 {sessionDate.toLocaleDateString()}
                       </Text>
+                      {session.startTime && (
+                        <Text style={styles.sessionTime}>
+                          🕐 {session.startTime}
+                          {session.endTime && ` - ${session.endTime}`}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.sessionStatus}>
+                      <View style={[
+                        styles.statusBadge,
+                        attendanceRecord 
+                          ? attendanceRecord.status === 'present' 
+                            ? styles.presentBadge 
+                            : attendanceRecord.status === 'absent' 
+                            ? styles.absentBadge 
+                            : styles.lateBadge
+                          : styles.noRecordBadge
+                      ]}>
+                        <Text style={[
+                          styles.statusText,
+                          attendanceRecord 
+                            ? attendanceRecord.status === 'present' 
+                              ? styles.presentText 
+                              : attendanceRecord.status === 'absent' 
+                              ? styles.absentText 
+                              : styles.lateText
+                            : styles.noRecordText
+                        ]}>
+                          {(() => {
+                            if (attendanceRecord) {
+                              return attendanceRecord.status === 'present' ? '✅ Present' 
+                                   : attendanceRecord.status === 'absent' ? '❌ Absent' 
+                                   : '🟡 Late';
+                            }
+                            const isFuture = sessionDate > today;
+                            if (isFuture) return '🔵 Upcoming';
+                            if (isToday) return '🟢 Today';
+                            return '⚪ No Record';
+                          })()}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-                
-                {session.status === 'active' && (
-                  <View style={styles.activeSessionBanner}>
-                    <Text style={styles.activeSessionText}>
-                      🔴 Session is active - Tap to join
+                  
+                  {attendanceRecord?.checkInTime && (
+                    <Text style={styles.checkInTime}>
+                      ✅ Checked in: {new Date(attendanceRecord.checkInTime).toLocaleTimeString()}
                     </Text>
-                  </View>
-                )}
-              </Card>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+                  )}
+                  
+                  {attendanceRecord?.notes && (
+                    <Text style={styles.attendanceNotes}>
+                      📝 {attendanceRecord.notes}
+                    </Text>
+                  )}
+                  
+                  {isToday && !attendanceRecord && (
+                    <View style={styles.activeSessionBanner}>
+                      <Text style={styles.activeSessionText}>
+                        🔴 Session today - Tap to join
+                      </Text>
+                    </View>
+                  )}
+                </Card>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -350,121 +305,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textSecondary,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg,
-  },
-  errorText: {
-    fontSize: 18,
-    color: theme.colors.error,
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
-  },
-  tabsContainer: {
+  
+  // Header
+  headerContainer: {
     flexDirection: 'row',
-    marginBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.xs,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: theme.spacing.sm,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: theme.borderRadius.sm,
-  },
-  activeTab: {
-    backgroundColor: theme.colors.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: theme.typography.fontWeight.medium as any,
-    color: theme.colors.textSecondary,
-  },
-  activeTabText: {
-    color: theme.colors.surface,
-  },
-  classInfoCard: {
-    marginBottom: theme.spacing.lg,
-    padding: theme.spacing.lg,
-  },
-  classTitle: {
-    fontSize: 24,
-    fontWeight: theme.typography.fontWeight.bold as any,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  classSubject: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.md,
-  },
-  classDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: theme.spacing.lg,
-  },
-  teacherInfo: {
     marginBottom: theme.spacing.lg,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: theme.typography.fontWeight.bold as any,
     color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
   },
-  teacherName: {
+  refreshButton: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  refreshIcon: {
     fontSize: 16,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+    color: theme.colors.primary,
   },
-  teacherEmail: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  scheduleInfo: {},
-  scheduleText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  locationText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  statsCard: {
-    marginBottom: theme.spacing.lg,
-    padding: theme.spacing.lg,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
+  
+  // Empty state
+  emptyCard: {
+    padding: theme.spacing.xl,
     alignItems: 'center',
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: theme.typography.fontWeight.bold as any,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  statLabel: {
-    fontSize: 12,
+  emptyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.textLight,
     textAlign: 'center',
   },
-  actionsCard: {
-    padding: theme.spacing.lg,
-  },
-  actionButton: {
-    backgroundColor: theme.colors.primary,
-    marginTop: theme.spacing.sm,
-  },
+  
+  // Sessions
   sessionsContainer: {
     gap: theme.spacing.md,
   },
@@ -475,23 +358,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: theme.spacing.xs,
   },
   sessionInfo: {
     flex: 1,
   },
-  sessionName: {
+  sessionDate: {
     fontSize: 16,
     fontWeight: theme.typography.fontWeight.bold as any,
     color: theme.colors.text,
     marginBottom: theme.spacing.xs,
   },
-  sessionDate: {
+  sessionTime: {
     fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-  },
-  sessionLocation: {
-    fontSize: 12,
     color: theme.colors.textSecondary,
   },
   sessionStatus: {
@@ -499,12 +378,50 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: theme.typography.fontWeight.medium as any,
+    fontWeight: 'bold',
+  },
+  
+  // Attendance status styles
+  presentBadge: {
+    backgroundColor: '#e8f5e8',
+  },
+  presentText: {
+    color: '#2e7d32',
+  },
+  absentBadge: {
+    backgroundColor: '#ffeaea',
+  },
+  absentText: {
+    color: '#d32f2f',
+  },
+  lateBadge: {
+    backgroundColor: '#fff3cd',
+  },
+  lateText: {
+    color: '#f57c00',
+  },
+  noRecordBadge: {
+    backgroundColor: '#f5f5f5',
+  },
+  noRecordText: {
+    color: theme.colors.textSecondary,
+  },
+  
+  checkInTime: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xs,
+  },
+  attendanceNotes: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: theme.spacing.xs,
   },
   activeSessionBanner: {
     backgroundColor: theme.colors.primary + '20',

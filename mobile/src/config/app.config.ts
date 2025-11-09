@@ -8,8 +8,8 @@
 export const APP_CONFIG = {
   // API Configuration
   api: {
-    // Base URL for the backend API (change this to your server URL)
-    baseURL: 'http://localhost:3000/api',
+    // Base URL for the backend API (reads from EXPO_PUBLIC_API_BASE_URL environment variable)
+    baseURL: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000/api',
     
     // Request timeout in milliseconds
     timeout: 30000,
@@ -20,8 +20,8 @@ export const APP_CONFIG = {
 
   // WebSocket Configuration
   websocket: {
-    // WebSocket server URL (usually same as API base URL)
-    url: 'http://localhost:3000',
+    // WebSocket server URL (derived from API base URL)
+    url: (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000/api').replace('/api', ''),
     
     // Enable WebSocket connection
     enabled: true,

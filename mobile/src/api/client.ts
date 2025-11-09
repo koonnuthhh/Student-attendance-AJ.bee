@@ -6,7 +6,7 @@ import { APP_CONFIG } from '../config/app.config';
 const CONFIG = {
   API_BASE_URL: APP_CONFIG.api.baseURL,
   TIMEOUT: APP_CONFIG.api.timeout,
-  STORAGE_KEY: '@attendance_token',
+  STORAGE_KEY: 'accessToken', // Match the key used in login
 };
 
 const api = axios.create({

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { APP_CONFIG } from '../config/app.config';
 
 interface WebSocketContextType {
   socket: Socket | null;
@@ -28,7 +29,7 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ 
   children, 
-  url = 'http://localhost:3000' 
+  url = APP_CONFIG.websocket.url 
 }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);

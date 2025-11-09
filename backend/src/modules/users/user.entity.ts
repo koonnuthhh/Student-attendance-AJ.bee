@@ -33,9 +33,9 @@ export class User extends BaseEntity {
   @Column({ 
     unique: true, 
     nullable: true, 
-    length: 8,
+    length: 5,
     name: 'student_code',
-    comment: 'Unique student identification code for class enrollment'
+    comment: 'Unique 5-digit student identification code for class enrollment'
   })
   studentCode?: string;
 

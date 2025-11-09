@@ -13,12 +13,26 @@ export class StudentCodesController {
     return { code };
   }
 
+  @Post('generate-for-class/:classId')
+  async generateCodeForClass(@Param('classId') classId: string) {
+    const code = await this.studentCodesService.createStudentCodeForClass(classId);
+    return { code, classId, message: 'Student code created and enrolled in class' };
+  }
+
   @Get('validate/:code')
   async validateCode(@Param('code') code: string) {
     const result = await this.studentCodesService.validateCode(code);
+    const classes = result.isValid ? await this.studentCodesService.getClassesForCode(code) : [];
+    
     return {
       isValid: result.isValid,
       isUsed: result.isUsed,
+      associatedClasses: classes.map(cls => ({
+        id: cls.id,
+        name: cls.name,
+        subject: cls.subject,
+        teacher: cls.teacher?.name || 'Unknown'
+      }))
     };
   }
 

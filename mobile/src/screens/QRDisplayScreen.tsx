@@ -6,18 +6,21 @@ import {
   Alert,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { sessionsAPI } from '../api';
 import { theme } from '../config/theme';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function QRDisplayScreen({ route, navigation }: any) {
   const { sessionId, className, sessionDate } = route.params;
   const [qrToken, setQrToken] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { logout } = useAuth();
 
   useEffect(() => {
     loadQRToken();
@@ -28,11 +31,39 @@ export default function QRDisplayScreen({ route, navigation }: any) {
 
   const loadQRToken = async () => {
     try {
-      const data = await sessionsAPI.getQRToken(sessionId);
-      setQrToken(data.token || data.code);
+      const response = await sessionsAPI.getQRToken(sessionId);
+      // Handle both old and new API response format
+      const token = response.token || response.code || response;
+      
+      if (!token) {
+        console.warn('No token received from API');
+        setQrToken('');
+        return;
+      }
+      
+      setQrToken(token);
     } catch (error: any) {
       console.error('Failed to load QR token:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to load QR code');
+      setQrToken(''); // Clear token on error
+      
+      // Handle specific error cases
+      if (error.status === 401) {
+        Alert.alert(
+          'Authentication Required', 
+          'Your session has expired. Please log in again.',
+          [
+            {
+              text: 'Log Out',
+              onPress: () => logout()
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Error', 
+          error.message || 'Failed to load QR code. Please check your connection and try again.'
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -54,7 +85,11 @@ export default function QRDisplayScreen({ route, navigation }: any) {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Attendance QR Code</Text>
@@ -79,7 +114,7 @@ export default function QRDisplayScreen({ route, navigation }: any) {
       <Card style={styles.qrCard}>
         {refreshing ? (
           <ActivityIndicator size="large" color={theme.colors.primary} />
-        ) : (
+        ) : qrToken ? (
           <>
             {/* Actual QR Code */}
             <View style={styles.qrContainer}>
@@ -97,6 +132,20 @@ export default function QRDisplayScreen({ route, navigation }: any) {
               <Text style={styles.tokenCode}>{qrToken}</Text>
             </View>
           </>
+        ) : (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorTitle}>Unable to generate QR Code</Text>
+            <Text style={styles.errorMessage}>
+              Please check your internet connection and try refreshing
+            </Text>
+            <Button
+              title="🔄 Try Again"
+              onPress={handleRefresh}
+              variant="primary"
+              style={styles.retryButton}
+            />
+          </View>
         )}
       </Card>
 
@@ -128,7 +177,7 @@ export default function QRDisplayScreen({ route, navigation }: any) {
           style={styles.actionButton}
         />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -136,7 +185,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  contentContainer: {
     padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl * 2, // Extra padding at bottom for scrolling
   },
   center: {
     flex: 1,
@@ -244,5 +296,32 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+  },
+  
+  // Error styles
+  errorContainer: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  errorIcon: {
+    fontSize: 48,
+    marginBottom: theme.spacing.md,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.error,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    lineHeight: 20,
+  },
+  retryButton: {
+    minWidth: 120,
   },
 });
