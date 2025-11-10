@@ -1,9 +1,10 @@
 import 'react-native-gesture-handler';
 import React, { useState } from 'react';
 import { TouchableOpacity, Text, Alert, View, Modal, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { Loading } from './src/components';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -18,11 +19,13 @@ import AttendanceScreen from './src/screens/AttendanceScreen';
 import QRScanScreen from './src/screens/QRScanScreen';
 import QRDisplayScreen from './src/screens/QRDisplayScreen';
 import LeaveScreen from './src/screens/LeaveScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 const Stack = createStackNavigator();
 
 function AppNavigator() {
   const { user, loading, logout } = useAuth();
+  const { theme } = useTheme();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   if (loading) {
@@ -57,8 +60,36 @@ function AppNavigator() {
       style={{ marginRight: 15, padding: 5 }}
       activeOpacity={0.7}
     >
-      <Text style={{ color: '#e74c3c', fontSize: 16, fontWeight: '600' }}>
+      <Text style={{ color: theme.colors.error, fontSize: 16, fontWeight: '600' }}>
         Logout
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const SettingsButton = ({ navigation }: { navigation: any }) => (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Settings')}
+      style={{
+        marginRight: 15,
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: theme.colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+      }}
+      activeOpacity={0.8}
+    >
+      <Text style={{ color: theme.colors.textInverse, fontSize: 16, marginRight: 4 }}>
+        ⚙️
+      </Text>
+      <Text style={{ color: theme.colors.textInverse, fontSize: 14, fontWeight: '600' }}>
+        Settings
       </Text>
     </TouchableOpacity>
   );
@@ -91,7 +122,17 @@ function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: theme.colors.surface,
+          },
+          headerTintColor: theme.colors.text,
+          headerTitleStyle: {
+            fontWeight: '600',
+          },
+        }}
+      >
         {!user ? (
           <Stack.Screen 
             name="Login" 
@@ -107,8 +148,21 @@ function AppNavigator() {
                 <Stack.Screen 
                   name="Dashboard" 
                   component={StudentDashboardScreen}
-                  options={{ 
+                  options={({ navigation }) => ({ 
                     title: 'Student Dashboard',
+                    headerRight: () => (
+                      <View style={{ flexDirection: 'row' }}>
+                        <SettingsButton navigation={navigation} />
+                        <LogoutButton />
+                      </View>
+                    )
+                  })}
+                />
+                <Stack.Screen 
+                  name="Settings" 
+                  component={SettingsScreen}
+                  options={{ 
+                    title: 'Settings',
                     headerRight: () => <LogoutButton />
                   }}
                 />
@@ -123,7 +177,7 @@ function AppNavigator() {
                 <Stack.Screen 
                   name="StudentAttendanceHistory" 
                   component={StudentAttendanceHistoryScreen}
-                  options={{ 
+                  options={{  
                     title: 'Attendance History',
                     headerRight: () => <LogoutButton />
                   }}
@@ -151,8 +205,21 @@ function AppNavigator() {
                 <Stack.Screen 
                   name="Dashboard" 
                   component={DashboardScreen}
-                  options={{ 
+                  options={({ navigation }) => ({ 
                     title: 'Teacher Dashboard',
+                    headerRight: () => (
+                      <View style={{ flexDirection: 'row' }}>
+                        <SettingsButton navigation={navigation} />
+                        <LogoutButton />
+                      </View>
+                    )
+                  })}
+                />
+                <Stack.Screen 
+                  name="Settings" 
+                  component={SettingsScreen}
+                  options={{ 
+                    title: 'Settings',
                     headerRight: () => <LogoutButton />
                   }}
                 />
@@ -216,21 +283,21 @@ function AppNavigator() {
         animationType="fade"
         onRequestClose={cancelLogout}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Logout</Text>
-            <Text style={styles.modalMessage}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Logout</Text>
+            <Text style={[styles.modalMessage, { color: theme.colors.textSecondary }]}>
               Are you sure you want to logout?
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.modalButton, styles.cancelButton, { backgroundColor: theme.colors.secondaryDark }]}
                 onPress={cancelLogout}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.logoutButton]}
+                style={[styles.modalButton, styles.logoutButton, { backgroundColor: theme.colors.error }]}
                 onPress={confirmLogout}
               >
                 <Text style={styles.logoutButtonText}>Logout</Text>
@@ -246,12 +313,10 @@ function AppNavigator() {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 24,
     width: '90%',
@@ -266,11 +331,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 12,
-    color: '#333',
   },
   modalMessage: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 24,
     lineHeight: 22,
   },
@@ -285,13 +348,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#f0f0f0',
+    // Background color set dynamically
   },
   logoutButton: {
-    backgroundColor: '#e74c3c',
+    // Background color set dynamically
   },
   cancelButtonText: {
-    color: '#333',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -304,8 +366,10 @@ const styles = StyleSheet.create({
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

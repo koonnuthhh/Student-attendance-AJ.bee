@@ -10,14 +10,17 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Button, Input, Loading } from '../components';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../api';
 
 export default function LoginScreen({ navigation }: any) {
   const { setAuthData } = useAuth();
+  const { theme } = useTheme();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  const styles = createStyles(theme);
 
   // Login form state
   const [email, setEmail] = useState('');
@@ -339,7 +342,7 @@ export default function LoginScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { sessionsAPI, attendanceAPI, classesAPI } from '../api';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Card } from '../components/Card';
 import { Loading } from '../components/Loading';
 
@@ -24,6 +24,7 @@ interface DashboardStats {
 
 export default function DashboardScreen() {
   const navigation = useNavigation();
+  const { theme } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     todaySessions: 0,
     totalStudents: 0,
@@ -72,8 +73,8 @@ export default function DashboardScreen() {
                 const attendance = await attendanceAPI.getBySession(session.id);
                 if (attendance && attendance.length > 0) {
                   totalStudents += attendance.length;
-                  presentToday += attendance.filter((a: any) => a.status === 'present').length;
-                  absentToday += attendance.filter((a: any) => a.status === 'absent').length;
+                  presentToday += attendance.filter((a: any) => a.status.toLowerCase() === 'present').length;
+                  absentToday += attendance.filter((a: any) => a.status.toLowerCase() === 'absent').length;
                 }
               } catch (error) {
                 console.warn('Failed to get attendance for session:', session.id);
@@ -130,6 +131,8 @@ export default function DashboardScreen() {
   if (loading) {
     return <Loading />;
   }
+
+  const styles = createStyles(theme);
 
   const attendanceRate = stats.totalStudents > 0
     ? ((stats.presentToday / stats.totalStudents) * 100).toFixed(1)
@@ -231,7 +234,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -261,15 +264,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     ...theme.shadows.md,
   },
   presentCard: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: theme.colors.surface,
   },
   absentCard: {
-    backgroundColor: '#ffebee',
+    backgroundColor: theme.colors.surface,
   },
   statValue: {
     fontSize: 32,

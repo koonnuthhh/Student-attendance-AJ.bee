@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { sessionsAPI } from '../api';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function QRDisplayScreen({ route, navigation }: any) {
   const { sessionId, className, sessionDate } = route.params;
+  const { theme } = useTheme();
   const [qrToken, setQrToken] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,10 +71,12 @@ export default function QRDisplayScreen({ route, navigation }: any) {
     }
   };
 
-  const handleRefresh = () => {
+  const onRefresh = () => {
     setRefreshing(true);
     loadQRToken();
   };
+
+  const styles = createStyles(theme);
 
   if (loading) {
     return (
@@ -141,7 +144,7 @@ export default function QRDisplayScreen({ route, navigation }: any) {
             </Text>
             <Button
               title="🔄 Try Again"
-              onPress={handleRefresh}
+              onPress={onRefresh}
               variant="primary"
               style={styles.retryButton}
             />
@@ -165,7 +168,7 @@ export default function QRDisplayScreen({ route, navigation }: any) {
       <View style={styles.actions}>
         <Button
           title="🔄 Refresh QR Code"
-          onPress={handleRefresh}
+          onPress={onRefresh}
           variant="outline"
           disabled={refreshing}
           style={styles.actionButton}
@@ -181,7 +184,7 @@ export default function QRDisplayScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -194,6 +197,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
     marginTop: theme.spacing.md,
@@ -225,7 +229,7 @@ const styles = StyleSheet.create({
   // Instructions
   instructionsCard: {
     marginBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.background,
   },
   instructionsTitle: {
     fontSize: 18,

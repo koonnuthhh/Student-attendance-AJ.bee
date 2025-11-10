@@ -6,15 +6,18 @@ import * as Location from 'expo-location';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function QRScanScreen({ route, navigation }: any) {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const styles = createStyles(theme);
 
   useEffect(() => {
     (async () => {
@@ -188,7 +191,7 @@ export default function QRScanScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: theme.colors.background,
@@ -304,11 +307,11 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   helpContainer: {
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.surface,
     padding: theme.spacing.lg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.colors.primary + '20',
+    borderColor: theme.colors.border,
   },
   helpTitle: {
     fontSize: 16,

@@ -9,8 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button, Card, Loading } from '../components';
-import { theme } from '../config/theme';
 import { APP_CONFIG } from '../config/app.config';
 
 interface Session {
@@ -26,10 +26,13 @@ interface Session {
 export default function StudentClassDetailScreen({ route, navigation }: any) {
   const { classId, className } = route.params;
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [studentAttendance, setStudentAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const styles = createStyles(theme);
 
   useEffect(() => {
     navigation.setOptions({ title: className });
@@ -141,6 +144,15 @@ export default function StudentClassDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const getStatusBackgroundColor = (status: string | null) => {
+    switch (status) {
+      case 'present': return theme.colors.attendancePresent + '20';
+      case 'late': return theme.colors.attendanceLate + '20';
+      case 'absent': return theme.colors.attendanceAbsent + '20';
+      default: return theme.colors.surface;
+    }
+  };
+
   const getStatusText = (session: Session) => {
     const attendanceRecord = studentAttendance.find(att => att.session?.id === session.id);
     const sessionDate = new Date(session.date);
@@ -223,28 +235,16 @@ export default function StudentClassDetailScreen({ route, navigation }: any) {
                     <View style={styles.sessionStatus}>
                       <View style={[
                         styles.statusBadge,
-                        attendanceRecord 
-                          ? attendanceRecord.status === 'present' 
-                            ? styles.presentBadge 
-                            : attendanceRecord.status === 'absent' 
-                            ? styles.absentBadge 
-                            : styles.lateBadge
-                          : styles.noRecordBadge
+                        { backgroundColor: getStatusBackgroundColor(attendanceRecord?.status || null) }
                       ]}>
                         <Text style={[
                           styles.statusText,
-                          attendanceRecord 
-                            ? attendanceRecord.status === 'present' 
-                              ? styles.presentText 
-                              : attendanceRecord.status === 'absent' 
-                              ? styles.absentText 
-                              : styles.lateText
-                            : styles.noRecordText
+                          { color: getStatusColor(attendanceRecord?.status || null) }
                         ]}>
                           {(() => {
                             if (attendanceRecord) {
-                              return attendanceRecord.status === 'present' ? '✅ Present' 
-                                   : attendanceRecord.status === 'absent' ? '❌ Absent' 
+                              return attendanceRecord.status.toLowerCase() === 'present' ? '✅ Present' 
+                                   : attendanceRecord.status.toLowerCase() === 'absent' ? '❌ Absent' 
                                    : '🟡 Late';
                             }
                             const isFuture = sessionDate > today;
@@ -286,7 +286,7 @@ export default function StudentClassDetailScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -388,25 +388,25 @@ const styles = StyleSheet.create({
   
   // Attendance status styles
   presentBadge: {
-    backgroundColor: '#e8f5e8',
+    // Background color set dynamically
   },
   presentText: {
-    color: '#2e7d32',
+    // Color set dynamically
   },
   absentBadge: {
-    backgroundColor: '#ffeaea',
+    // Background color set dynamically
   },
   absentText: {
-    color: '#d32f2f',
+    // Color set dynamically
   },
   lateBadge: {
-    backgroundColor: '#fff3cd',
+    // Background color set dynamically
   },
   lateText: {
-    color: '#f57c00',
+    // Color set dynamically
   },
   noRecordBadge: {
-    backgroundColor: '#f5f5f5',
+    // Background color set dynamically
   },
   noRecordText: {
     color: theme.colors.textSecondary,

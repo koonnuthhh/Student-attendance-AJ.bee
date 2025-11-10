@@ -9,8 +9,9 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button, Card, Loading } from '../components';
-import { theme } from '../config/theme';
+import { studentsAPI } from '../api';
 
 interface AttendanceRecord {
   id: string;
@@ -20,7 +21,7 @@ interface AttendanceRecord {
   date: string;
   startTime: string;
   endTime: string;
-  status: 'present' | 'absent' | 'late' | 'excused';
+  status: 'Present' | 'Absent' | 'Late' | 'Excused';
   markedAt?: string;
   notes?: string;
 }
@@ -32,10 +33,13 @@ interface FilterOption {
 
 export default function StudentAttendanceHistoryScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
+
+  const styles = createStyles(theme);
 
   const filterOptions: FilterOption[] = [
     { key: 'all', label: 'All' },
@@ -53,14 +57,56 @@ export default function StudentAttendanceHistoryScreen({ navigation }: any) {
     try {
       setLoading(true);
       
-      // TODO: Replace with actual API calls when attendance history endpoints are available
-      // For now, showing empty state since student has no attendance records yet
-      const attendanceHistory: AttendanceRecord[] = [];
-
-      setAttendanceRecords(attendanceHistory);
+      // Get all classes the student is enrolled in
+      const enrolledClasses = await studentsAPI.getMyClasses();
+      console.log('Enrolled classes:', enrolledClasses);
+      
+      if (!enrolledClasses || enrolledClasses.length === 0) {
+        setAttendanceRecords([]);
+        return;
+      }
+      
+      // Get attendance records for all classes
+      const allAttendancePromises = enrolledClasses.map(async (classItem: any) => {
+        try {
+          const classAttendance = await studentsAPI.getMyAttendanceForClass(classItem.id);
+          
+          // Transform the data to match our interface
+          return classAttendance.map((record: any) => ({
+            id: record.id,
+            sessionId: record.session.id,
+            sessionName: `${classItem.name} Session`,
+            className: classItem.name,
+            date: record.session.date,
+            startTime: record.session.startTime || '09:00',
+            endTime: record.session.endTime || '10:00',
+            status: record.status as 'present' | 'absent' | 'late' | 'excused',
+            markedAt: record.checkInTime,
+            notes: record.notes,
+          }));
+        } catch (error) {
+          console.error(`Error loading attendance for class ${classItem.id}:`, error);
+          return [];
+        }
+      });
+      
+      const allAttendanceArrays = await Promise.all(allAttendancePromises);
+      const allAttendance = allAttendanceArrays.flat();
+      
+      // Sort by date (most recent first)
+      allAttendance.sort((a: any, b: any) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      console.log('All attendance records:', allAttendance);
+      setAttendanceRecords(allAttendance);
+      
     } catch (error) {
       Alert.alert('Error', 'Failed to load attendance history');
       console.error('Error loading attendance history:', error);
+      setAttendanceRecords([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -137,7 +183,7 @@ export default function StudentAttendanceHistoryScreen({ navigation }: any) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
@@ -167,25 +213,25 @@ export default function StudentAttendanceHistoryScreen({ navigation }: any) {
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: theme.colors.success }]}>
-              {attendanceRecords.filter(r => r.status === 'present').length}
+              {attendanceRecords.filter(r => r.status.toLowerCase() === 'present').length}
             </Text>
             <Text style={styles.summaryLabel}>Present</Text>
           </View>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: theme.colors.warning }]}>
-              {attendanceRecords.filter(r => r.status === 'late').length}
+              {attendanceRecords.filter(r => r.status.toLowerCase() === 'late').length}
             </Text>
             <Text style={styles.summaryLabel}>Late</Text>
           </View>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: theme.colors.error }]}>
-              {attendanceRecords.filter(r => r.status === 'absent').length}
+              {attendanceRecords.filter(r => r.status.toLowerCase() === 'absent').length}
             </Text>
             <Text style={styles.summaryLabel}>Absent</Text>
           </View>
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNumber, { color: theme.colors.info }]}>
-              {attendanceRecords.filter(r => r.status === 'excused').length}
+              {attendanceRecords.filter(r => r.status.toLowerCase() === 'excused').length}
             </Text>
             <Text style={styles.summaryLabel}>Excused</Text>
           </View>
@@ -261,7 +307,7 @@ export default function StudentAttendanceHistoryScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,

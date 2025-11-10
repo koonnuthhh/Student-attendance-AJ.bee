@@ -8,7 +8,7 @@ import {
   TextStyle,
   View,
 } from 'react-native';
-import theme from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ButtonProps {
   title: string;
@@ -35,6 +35,8 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
+  const { theme } = useTheme();
+
   const getButtonStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       height: theme.components.button.height[size],
@@ -100,7 +102,7 @@ export const Button: React.FC<ButtonProps> = ({
 
     return {
       ...baseStyle,
-      color: '#FFFFFF',
+      color: theme.colors.textInverse,
     };
   };
 
@@ -112,7 +114,7 @@ export const Button: React.FC<ButtonProps> = ({
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? theme.colors.primary : '#FFFFFF'} />
+        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? theme.colors.primary : theme.colors.textInverse} />
       ) : (
         <>
           {icon && <View style={{ marginRight: theme.spacing.sm }}>{icon}</View>}

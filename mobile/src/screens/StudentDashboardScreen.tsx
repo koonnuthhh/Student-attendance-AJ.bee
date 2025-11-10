@@ -9,8 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button, Card, Loading } from '../components';
-import { theme } from '../config/theme';
 import { studentsAPI } from '../api';
 
 interface Class {
@@ -27,6 +27,7 @@ interface Class {
 
 export default function StudentDashboardScreen({ navigation }: any) {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +36,8 @@ export default function StudentDashboardScreen({ navigation }: any) {
     todaySessions: 0,
     overallAttendance: 0,
   });
+
+  const styles = createStyles(theme);
 
   useEffect(() => {
     loadStudentData();
@@ -104,22 +107,22 @@ export default function StudentDashboardScreen({ navigation }: any) {
 
   return (
     <ScrollView 
-      style={styles.container} 
+      style={[styles.container, { backgroundColor: theme.colors.background }]} 
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
         <View style={styles.headerInfo}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.studentName}>{user?.name || 'Student'}</Text>
+          <Text style={[styles.welcomeText, { color: theme.colors.textSecondary }]}>Welcome back,</Text>
+          <Text style={[styles.studentName, { color: theme.colors.text }]}>{user?.name || 'Student'}</Text>
           <View style={styles.studentIdContainer}>
-            <Text style={styles.studentIdLabel}>Student ID:</Text>
-            <Text style={styles.studentIdCode}>{getDisplayStudentId()}</Text>
+            <Text style={[styles.studentIdLabel, { color: theme.colors.textSecondary }]}>Student ID:</Text>
+            <Text style={[styles.studentIdCode, { color: theme.colors.primary }]}>{getDisplayStudentId()}</Text>
             {!user?.studentCode && (
-              <Text style={styles.temporaryIdNote}>(Temporary)</Text>
+              <Text style={[styles.temporaryIdNote, { color: theme.colors.textSecondary }]}>(Temporary)</Text>
             )}
           </View>
         </View>
@@ -230,7 +233,7 @@ export default function StudentDashboardScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -507,7 +510,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: theme.typography.fontWeight.bold as any,
     color: theme.colors.primary,
-    backgroundColor: theme.colors.primaryLight + '30',
+    backgroundColor: theme.colors.secondary + '30',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     borderRadius: theme.borderRadius.sm,

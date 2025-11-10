@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
-import theme from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CardProps {
   children: React.ReactNode;
@@ -15,6 +15,8 @@ export const Card: React.FC<CardProps> = ({
   onPress,
   variant = 'elevated',
 }) => {
+  const { theme } = useTheme();
+
   const getCardStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       backgroundColor: theme.colors.surface,

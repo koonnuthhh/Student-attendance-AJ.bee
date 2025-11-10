@@ -8,7 +8,7 @@ import {
   TextStyle,
   TextInputProps as RNTextInputProps,
 } from 'react-native';
-import theme from '../config/theme';
+import { useTheme, useThemedStyles } from '../contexts/ThemeContext';
 
 interface InputProps extends RNTextInputProps {
   label?: string;
@@ -32,6 +32,8 @@ export const Input: React.FC<InputProps> = ({
   required = false,
   ...textInputProps
 }) => {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [isFocused, setIsFocused] = useState(false);
 
   const getInputHeight = () => {
@@ -87,7 +89,7 @@ export const Input: React.FC<InputProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     marginBottom: theme.spacing.md,
   },

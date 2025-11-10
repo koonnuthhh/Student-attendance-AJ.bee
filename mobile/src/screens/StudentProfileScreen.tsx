@@ -9,8 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button, Card, Loading } from '../components';
-import { theme } from '../config/theme';
 import { classesAPI, attendanceAPI } from '../api';
 
 interface ProfileData {
@@ -33,6 +33,7 @@ interface ProfileSection {
 
 export default function StudentProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -47,6 +48,8 @@ export default function StudentProfileScreen({ navigation }: any) {
       total: 0,
     },
   });
+
+  const styles = createStyles(theme);
 
   useEffect(() => {
     loadProfileData();
@@ -187,7 +190,7 @@ export default function StudentProfileScreen({ navigation }: any) {
 
   return (
     <ScrollView 
-      style={styles.container} 
+      style={[styles.container, { backgroundColor: theme.colors.background }]} 
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
@@ -312,7 +315,7 @@ export default function StudentProfileScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,

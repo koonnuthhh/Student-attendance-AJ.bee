@@ -12,29 +12,32 @@ import {
   ScrollView,
 } from 'react-native';
 import { attendanceAPI, classesAPI, sessionsAPI } from '../api';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/Button';
+import { Loading } from '../components/Loading';
 import { Input } from '../components/Input';
 
 const STATUS_OPTIONS = [
-  { value: 'present', label: 'Present', color: '#4caf50', icon: '✅' },
-  { value: 'absent', label: 'Absent', color: '#f44336', icon: '❌' },
-  { value: 'late', label: 'Late', color: '#ff9800', icon: '🕐' },
-  { value: 'excused', label: 'Excused', color: '#2196f3', icon: '📋' },
+  { value: 'Present', label: 'Present', color: '#4caf50', icon: '✅' },
+  { value: 'Absent', label: 'Absent', color: '#f44336', icon: '❌' },
+  { value: 'Late', label: 'Late', color: '#ff9800', icon: '🕐' },
+  { value: 'Excused', label: 'Excused', color: '#2196f3', icon: '📋' },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  present: '#4caf50',
-  absent: '#f44336',
-  late: '#ff9800',
-  excused: '#2196f3',
   Present: '#4caf50',
   Absent: '#f44336',
   Late: '#ff9800',
   Excused: '#2196f3',
+  // Keep lowercase for backward compatibility with existing data
+  present: '#4caf50',
+  absent: '#f44336',
+  late: '#ff9800',
+  excused: '#2196f3',
 };
 
 export default function AttendanceScreen({ route }: any) {
+  const { theme } = useTheme();
   const { sessionId, sessionDate } = route.params;
   const [records, setRecords] = useState<any[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
@@ -47,6 +50,9 @@ export default function AttendanceScreen({ route }: any) {
   const [currentNotes, setCurrentNotes] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  const styles = createStyles(theme);
 
   useEffect(() => {
     loadAttendance();
@@ -85,13 +91,16 @@ export default function AttendanceScreen({ route }: any) {
       const allRecords = students.map((student: any) => {
         const existingRecord = attendanceMap.get(student.id);
         if (existingRecord) {
-          return existingRecord;
+          return {
+            ...existingRecord,
+            isDefault: false
+          };
         } else {
           // Create default record for students who haven't checked in
           return {
             id: `default-${student.id}`, // Temporary ID for default records
             student: student,
-            status: 'absent',
+            status: 'Absent', // Use capitalized status to match backend enum
             note: '',
             isDefault: true, // Flag to identify default records
           };
@@ -113,9 +122,12 @@ export default function AttendanceScreen({ route }: any) {
 
     // Apply status filter
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(
-        (r) => r.status.toLowerCase() === filterStatus.toLowerCase()
-      );
+      filtered = filtered.filter((r) => {
+        // Handle both capitalized and lowercase statuses for compatibility
+        const recordStatus = r.status.toLowerCase();
+        const filterStatusLower = filterStatus.toLowerCase();
+        return recordStatus === filterStatusLower;
+      });
     }
 
     // Apply search filter
@@ -141,10 +153,25 @@ export default function AttendanceScreen({ route }: any) {
           onPress: async () => {
             try {
               setLoading(true);
-              await attendanceAPI.bulkMark(sessionId, status, []);
+              
+              // Create an array of all students with the new status as overrides
+              const overrides = allStudents.map(student => ({
+                studentId: student.id,
+                status: status,
+                note: ''
+              }));
+              
+              console.log('Bulk marking students:', {
+                sessionId,
+                defaultStatus: status,
+                overrides: overrides
+              });
+              
+              await attendanceAPI.bulkMark(sessionId, status, overrides);
               await loadAttendance();
               Alert.alert('Success', `All students marked as ${status}`);
             } catch (error: any) {
+              console.error('Bulk mark error:', error);
               Alert.alert('Error', error.response?.data?.message || 'Failed to bulk update');
             } finally {
               setLoading(false);
@@ -155,20 +182,39 @@ export default function AttendanceScreen({ route }: any) {
     );
   };
 
-  const toggleStatus = async (recordId: string, currentStatus: string) => {
-    setSelectedRecord({ id: recordId, status: currentStatus });
+  const toggleStatus = async (record: any) => {
+    setSelectedRecord(record);
     setModalVisible(true);
   };
 
   const updateStatus = async (newStatus: string) => {
     try {
+      setUpdating(true);
+      
       if (selectedRecord.isDefault) {
-        // For default records, create a new attendance record
-        await attendanceAPI.bulkMark(sessionId, newStatus, [
-          { studentId: selectedRecord.student.id, status: newStatus, note: currentNotes }
-        ]);
+        // For default records, create a new attendance record using bulk mark
+        const overrides = [{
+          studentId: selectedRecord.student.id,
+          status: newStatus,
+          note: currentNotes || ''
+        }];
+        
+        console.log('Creating new attendance record:', {
+          sessionId,
+          defaultStatus: newStatus,
+          overrides: overrides
+        });
+        
+        await attendanceAPI.bulkMark(sessionId, newStatus, overrides);
       } else {
-        // For existing records, update them
+        // For existing records, update them directly
+        console.log('Updating existing attendance record:', {
+          sessionId,
+          recordId: selectedRecord.id,
+          status: newStatus,
+          notes: currentNotes
+        });
+        
         await attendanceAPI.update(sessionId, selectedRecord.id, newStatus, currentNotes || undefined);
       }
       
@@ -177,7 +223,10 @@ export default function AttendanceScreen({ route }: any) {
       await loadAttendance();
       Alert.alert('Success', 'Attendance updated');
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update');
+      console.error('Update status error:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update attendance');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -189,13 +238,32 @@ export default function AttendanceScreen({ route }: any) {
 
   const saveNotes = async () => {
     try {
+      setUpdating(true);
+      
       if (selectedRecord.isDefault) {
         // For default records, create a new attendance record with current status and notes
-        await attendanceAPI.bulkMark(sessionId, selectedRecord.status, [
-          { studentId: selectedRecord.student.id, status: selectedRecord.status, note: currentNotes }
-        ]);
+        const overrides = [{
+          studentId: selectedRecord.student.id,
+          status: selectedRecord.status,
+          note: currentNotes || ''
+        }];
+        
+        console.log('Creating attendance record with notes:', {
+          sessionId,
+          defaultStatus: selectedRecord.status,
+          overrides: overrides
+        });
+        
+        await attendanceAPI.bulkMark(sessionId, selectedRecord.status, overrides);
       } else {
         // For existing records, update them
+        console.log('Updating notes for existing record:', {
+          sessionId,
+          recordId: selectedRecord.id,
+          status: selectedRecord.status,
+          notes: currentNotes
+        });
+        
         await attendanceAPI.update(sessionId, selectedRecord.id, selectedRecord.status, currentNotes);
       }
       
@@ -204,16 +272,15 @@ export default function AttendanceScreen({ route }: any) {
       await loadAttendance();
       Alert.alert('Success', 'Notes saved');
     } catch (error: any) {
+      console.error('Save notes error:', error);
       Alert.alert('Error', error.response?.data?.message || 'Failed to save notes');
+    } finally {
+      setUpdating(false);
     }
   };
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
+    return <Loading message="Loading attendance..." />;
   }
 
   return (
@@ -256,7 +323,10 @@ export default function AttendanceScreen({ route }: any) {
             </Text>
           </TouchableOpacity>
           {STATUS_OPTIONS.map((option) => {
-            const count = records.filter((r) => r.status.toLowerCase() === option.value).length;
+            const count = records.filter((r) => {
+              // Handle both capitalized and lowercase statuses for compatibility
+              return r.status.toLowerCase() === option.value.toLowerCase();
+            }).length;
             return (
               <TouchableOpacity
                 key={option.value}
@@ -302,7 +372,7 @@ export default function AttendanceScreen({ route }: any) {
             <View style={styles.recordActions}>
               <TouchableOpacity
                 style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] }]}
-                onPress={() => toggleStatus(item.id, item.status)}
+                onPress={() => toggleStatus(item)}
               >
                 <Text style={styles.statusText}>{item.status}</Text>
               </TouchableOpacity>
@@ -332,10 +402,15 @@ export default function AttendanceScreen({ route }: any) {
                 key={option.value}
                 style={[styles.statusOption, { backgroundColor: option.color }]}
                 onPress={() => updateStatus(option.value)}
+                disabled={updating}
               >
-                <Text style={styles.statusOptionText}>
-                  {option.icon} {option.label}
-                </Text>
+                {updating ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.statusOptionText}>
+                    {option.icon} {option.label}
+                  </Text>
+                )}
               </TouchableOpacity>
             ))}
             <Button
@@ -368,9 +443,10 @@ export default function AttendanceScreen({ route }: any) {
             />
             <View style={styles.modalButtons}>
               <Button
-                title="Save"
+                title={updating ? "Saving..." : "Save"}
                 onPress={saveNotes}
                 style={{ flex: 1, marginRight: 8 }}
+                disabled={updating}
               />
               <Button
                 title="Cancel"
@@ -380,6 +456,7 @@ export default function AttendanceScreen({ route }: any) {
                   setCurrentNotes('');
                 }}
                 style={{ flex: 1 }}
+                disabled={updating}
               />
             </View>
           </View>
@@ -389,11 +466,16 @@ export default function AttendanceScreen({ route }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f5f5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+const createStyles = (theme: any) => StyleSheet.create({
+  container: { flex: 1, padding: 20, backgroundColor: theme.colors.background },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, color: theme.colors.text },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: theme.colors.text },
   
   // Bulk Actions
   bulkActions: { marginBottom: 16 },
@@ -412,15 +494,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     marginRight: 8,
   },
   filterButtonActive: {
     backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   filterButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   filterButtonTextActive: {
     color: '#fff',
@@ -429,36 +514,38 @@ const styles = StyleSheet.create({
   
   // Record Card
   recordCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     padding: 15,
     borderRadius: 10,
     marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   recordCardDefault: {
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#ccc',
-    backgroundColor: '#f9f9f9',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
   },
   recordInfo: { flex: 1 },
-  studentName: { fontSize: 18, fontWeight: '600', color: '#333' },
-  studentEmail: { fontSize: 14, color: '#666', marginTop: 2 },
-  studentId: { fontSize: 12, color: '#888', marginTop: 1 },
+  studentName: { fontSize: 18, fontWeight: '600', color: theme.colors.text },
+  studentEmail: { fontSize: 14, color: theme.colors.textSecondary, marginTop: 2 },
+  studentId: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 1 },
   notCheckedInIndicator: { 
     fontSize: 14, 
-    color: '#ff9800', 
+    color: theme.colors.warning || '#ff9800', 
     fontStyle: 'italic',
     marginTop: 4,
-    backgroundColor: '#fff3cd',
+    backgroundColor: theme.colors.warningLight || 'rgba(255, 152, 0, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
-  notePreview: { fontSize: 12, color: '#666', marginTop: 4 },
+  notePreview: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 4 },
   recordActions: { flexDirection: 'row', alignItems: 'center' },
   statusBadge: {
     paddingHorizontal: 12,
@@ -469,14 +556,16 @@ const styles = StyleSheet.create({
   statusText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
   notesButton: {
     padding: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.surface,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   notesButtonText: { fontSize: 18 },
   
   // Empty State
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { fontSize: 16, color: '#999' },
+  emptyText: { fontSize: 16, color: theme.colors.textSecondary },
   
   // Modals
   modalOverlay: {
@@ -486,7 +575,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 24,
     width: '85%',
@@ -497,10 +586,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
+    color: theme.colors.text,
   },
   modalSubtitle: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -517,14 +607,18 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
     marginBottom: 16,
+    color: theme.colors.text,
   },
   modalButtons: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
   },
 });

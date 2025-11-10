@@ -14,7 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { classesAPI, sessionsAPI } from '../api';
 import { APP_CONFIG } from '../config/app.config';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
@@ -22,6 +22,7 @@ import { Loading } from '../components/Loading';
 
 export default function ClassDetailsScreen({ route, navigation }: any) {
   const { classId, className, isStudent } = route.params;
+  const { theme } = useTheme();
   
   // Add error state
   const [error, setError] = useState<string | null>(null);
@@ -387,6 +388,8 @@ export default function ClassDetailsScreen({ route, navigation }: any) {
     return <Loading />;
   }
 
+  const styles = createStyles(theme);
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -423,13 +426,13 @@ export default function ClassDetailsScreen({ route, navigation }: any) {
           <Button
             title="👤 Add Student by ID"
             onPress={() => setAddStudentModalVisible(true)}
-            variant="secondary"
+            variant="outline"
             style={styles.actionButton}
           />
           <Button
             title="📋 Create Session"
             onPress={() => setSessionModalVisible(true)}
-            variant="secondary"
+            variant="outline"
             style={styles.actionButton}
           />
         </View>
@@ -501,16 +504,16 @@ export default function ClassDetailsScreen({ route, navigation }: any) {
                         {attendanceRecord ? (
                           <View style={[
                             styles.statusBadge, 
-                            attendanceRecord.status === 'present' ? styles.presentBadge : 
-                            attendanceRecord.status === 'absent' ? styles.absentBadge : styles.lateBadge
+                            attendanceRecord.status.toLowerCase() === 'present' ? styles.presentBadge : 
+                            attendanceRecord.status.toLowerCase() === 'absent' ? styles.absentBadge : styles.lateBadge
                           ]}>
                             <Text style={[
                               styles.statusText,
-                              attendanceRecord.status === 'present' ? styles.presentText : 
-                              attendanceRecord.status === 'absent' ? styles.absentText : styles.lateText
+                              attendanceRecord.status.toLowerCase() === 'present' ? styles.presentText : 
+                              attendanceRecord.status.toLowerCase() === 'absent' ? styles.absentText : styles.lateText
                             ]}>
-                              {attendanceRecord.status === 'present' ? '✅ Present' : 
-                               attendanceRecord.status === 'absent' ? '❌ Absent' : '🟡 Late'}
+                              {attendanceRecord.status.toLowerCase() === 'present' ? '✅ Present' : 
+                               attendanceRecord.status.toLowerCase() === 'absent' ? '❌ Absent' : '🟡 Late'}
                             </Text>
                           </View>
                         ) : (
@@ -918,7 +921,7 @@ export default function ClassDetailsScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -943,18 +946,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: theme.colors.textInverse,
     marginBottom: theme.spacing.xs,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: theme.colors.textInverse,
   },
   quickActions: {
     flexDirection: 'row',
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     flexWrap: 'wrap',
@@ -965,7 +968,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
@@ -1012,7 +1015,7 @@ const styles = StyleSheet.create({
   studentInitials: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
   },
   studentDetails: {
     flex: 1,
@@ -1088,7 +1091,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 24,
     width: '90%',
@@ -1100,6 +1103,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: theme.spacing.sm,
     textAlign: 'center',
+    color: theme.colors.text,
   },
   modalSubtitle: {
     fontSize: 14,
@@ -1146,7 +1150,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: theme.colors.border,
   },
   qrButton: {
     backgroundColor: '#4CAF50',
@@ -1210,7 +1214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: theme.spacing.sm,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     borderRadius: 6,
     marginBottom: theme.spacing.xs,
     borderWidth: 1,

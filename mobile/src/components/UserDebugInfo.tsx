@@ -1,9 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export function UserDebugInfo() {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
@@ -15,10 +18,10 @@ export function UserDebugInfo() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.surface,
     margin: 16,
     borderRadius: 8,
   },
@@ -26,11 +29,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 8,
+    color: theme.colors.text,
   },
   json: {
     fontSize: 12,
     fontFamily: 'monospace',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text,
     padding: 8,
     borderRadius: 4,
   },

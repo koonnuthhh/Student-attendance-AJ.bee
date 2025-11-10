@@ -11,7 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import { leaveAPI } from '../api';
-import { theme } from '../config/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
@@ -32,6 +32,7 @@ const STATUS_CONFIG = {
 };
 
 export default function LeaveScreen() {
+  const { theme } = useTheme();
   const [leaves, setLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -130,6 +131,8 @@ export default function LeaveScreen() {
   const filteredLeaves = filterStatus === 'all'
     ? leaves
     : leaves.filter((l) => l.status === filterStatus);
+
+  const styles = createStyles(theme);
 
   if (loading) {
     return <Loading />;
@@ -326,7 +329,7 @@ export default function LeaveScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,

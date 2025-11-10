@@ -13,12 +13,15 @@ import {
 } from 'react-native';
 import { sessionsAPI } from '../api';
 import { format } from 'date-fns';
+import { useTheme } from '../contexts/ThemeContext';
+import { Loading } from '../components/Loading';
 
 export default function SessionsScreen({ route, navigation }: any) {
   const { classId, className } = route.params;
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const { theme } = useTheme();
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   
@@ -189,11 +192,7 @@ export default function SessionsScreen({ route, navigation }: any) {
   };
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <Loading message="Loading sessions..." />;
   }
 
   return (
@@ -215,7 +214,7 @@ export default function SessionsScreen({ route, navigation }: any) {
         data={sessions}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.sessionCard}>
+          <View style={[styles.sessionCard, { backgroundColor: theme.colors.surface }]}>
             <TouchableOpacity
               style={styles.sessionInfo}
               onPress={() =>
@@ -278,7 +277,7 @@ export default function SessionsScreen({ route, navigation }: any) {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <Text style={styles.modalTitle}>Create New Session</Text>
             <Text style={styles.subtitle}>for {className}</Text>
 
