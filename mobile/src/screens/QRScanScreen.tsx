@@ -67,7 +67,10 @@ export default function QRScanScreen({ route, navigation }: any) {
           const location = await Location.getCurrentPositionAsync({});
           lat = location.coords.latitude;
           long = location.coords.longitude;
-          accuracy = location.coords.accuracy || undefined;
+          // Cap accuracy at 999999 meters (999.99 km) to prevent database overflow
+          // Database field is now decimal(8,2) so max value is 999999.99
+          const rawAccuracy = location.coords.accuracy;
+          accuracy = rawAccuracy ? Math.min(rawAccuracy, 999999) : undefined;
         } catch (locationError) {
           console.warn('Could not get location:', locationError);
           // Continue without location

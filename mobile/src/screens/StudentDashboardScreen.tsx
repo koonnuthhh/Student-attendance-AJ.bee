@@ -156,19 +156,11 @@ export default function StudentDashboardScreen({ navigation }: any) {
         
         <View style={styles.actionGrid}>
           <TouchableOpacity 
-            style={styles.actionCard} 
+            style={[styles.actionCard, { flex: 1 }]} 
             onPress={() => navigation.navigate('StudentAttendanceHistory')}
           >
             <Text style={styles.actionCardIcon}>📊</Text>
             <Text style={styles.actionCardLabel}>Attendance History</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionCard} 
-            onPress={() => navigation.navigate('StudentProfile')}
-          >
-            <Text style={styles.actionCardIcon}>👤</Text>
-            <Text style={styles.actionCardLabel}>My Profile</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -395,18 +387,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    fontWeight: theme.typography.fontWeight.medium as any,
-  },
-  profileButton: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    backgroundColor: theme.colors.primaryLight,
-    borderRadius: theme.borderRadius.sm,
-    marginLeft: theme.spacing.sm,
-  },
-  profileButtonText: {
-    fontSize: 12,
-    color: theme.colors.primary,
     fontWeight: theme.typography.fontWeight.medium as any,
   },
   classesSection: {

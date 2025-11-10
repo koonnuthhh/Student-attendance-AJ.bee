@@ -38,7 +38,7 @@ export class AttendanceRecord extends BaseEntity {
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
   long: number;
 
-  @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
   accuracy: number;
 
   @Column()
