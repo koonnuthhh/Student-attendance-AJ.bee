@@ -1,0 +1,24 @@
+{
+  "name": "student-attendance-app",
+  "version": "1.0.0",
+  "description": "Student Attendance Management System",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "build": "cd backend && npm run build",
+    "install": "cd backend && npm install",
+    "dev": "cd backend && npm run start:dev",
+    "migrate": "cd backend && npm run migration:run",
+    "postinstall": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/koonnuthhh/Student-attendance-AJ.bee.git"
+  },
+  "keywords": ["attendance", "student", "management", "nestjs", "react-native"],
+  "author": "AJ.bee",
+  "license": "MIT"
+}
